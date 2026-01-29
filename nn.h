@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cinttypes>
 #include <fstream>
+#include <unordered_map>
 #include "tensor.h"
 
 
@@ -85,8 +86,8 @@ std::array<size_t, 2> argMax(const Tensor<T>& arguments) {
     size_t nCols = arguments.dim()[1];
     T max = arguments.at(0, 0);
     std::array<size_t, 2> maxIndex = {0,0};
-    for(size_t r = 0; r < nRows; ++r) {
-        for(size_t c = 0; c < nCols; ++c) {
+    for(size_t r{0}; r < nRows; ++r) {
+        for(size_t c{0}; c < nCols; ++c) {
             if (arguments.at(r, c) > max) {
                 max = arguments.at(r, c);
                 maxIndex = {r, c};
@@ -105,14 +106,14 @@ Tensor<T> softMax(const Tensor<T>& results) {
     T max = results.at(argMax(results));
     Tensor<T> normalized(results.dim());
 
-    for(size_t r = 0; r < nRows; ++r) {
-        for(size_t c = 0; c < nCols; ++c) {
+    for(size_t r{0}; r < nRows; ++r) {
+        for(size_t c{0}; c < nCols; ++c) {
             denom += exp(results.at(r, 0) - max);
         }
     }
 
-    for(size_t r = 0; r < nRows; ++r) {
-        for(size_t c = 0; c < nCols; ++c) {
+    for(size_t r{0}; r < nRows; ++r) {
+        for(size_t c{0}; c < nCols; ++c) {
             normalized.at(r, 0) = exp(results.at(r,0) - max) / denom;
         }
     }
@@ -152,7 +153,7 @@ public:
         for(size_t nLayer = 1; nLayer < nLayerCount; ++nLayer) {
             acts.push_back(Tensor<T>(desc.at(nLayer), 1));
             bs.push_back(Tensor<T>(desc.at(nLayer), 1).random(-1, 1));
-            wts.push_back(Tensor<T>(desc.at(nLayer - 1),desc.at(nLayer)).random(-1, 1));
+            wts.push_back(Tensor<T>(desc.at(nLayer - 1),desc.at(nLayer)).random(0, 1));
             activations.push_back(layerActivations.at(nLayer - 1));
         }
     }    
@@ -167,7 +168,7 @@ public:
         char name[20];
     
         std::cout << modelName << " = [\n";
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             snprintf(name, sizeof(name), "Bias%lld", nLayer);
             bs.at(nLayer).print(name);
             
@@ -225,33 +226,33 @@ public:
         }
 
         //Activations
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             writeWord(ofs, (uint8_t) activations.at(nLayer));
         }
 
         //WeightTensors 
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             const Tensor<T>& t = wts.at(nLayer);
             size_t nRows = t.dim()[0];
             size_t nCols = t.dim()[1];
             writeWord(ofs, (uint32_t)nRows);
             writeWord(ofs, (uint32_t)nCols);
-            for(size_t r = 0; r < nRows; ++r) {
-                for(size_t c = 0; c < nCols; ++c) {
+            for(size_t r{0}; r < nRows; ++r) {
+                for(size_t c{0}; c < nCols; ++c) {
                     T tVal = t.at(r, c);
                     ofs.write((char*)&tVal, nNumBytesPerType);
                 }
             }
         }
         //BiasTensors 
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             const Tensor<T>& t = bs.at(nLayer);
             size_t nRows = t.dim()[0];
             size_t nCols = t.dim()[1];
             writeWord(ofs, (uint32_t)nRows);
             writeWord(ofs, (uint32_t)nCols);
-            for(size_t r = 0; r < nRows; ++r) {
-                for(size_t c = 0; c < nCols; ++c) {
+            for(size_t r{0}; r < nRows; ++r) {
+                for(size_t c{0}; c < nCols; ++c) {
                     T tVal = t.at(r, c);
                     ofs.write((char*)&tVal, nNumBytesPerType);
                 }
@@ -265,12 +266,12 @@ public:
 
         zs.clear();
 
-        //iter through each layer and comput the outputs         
+        //iter through each layer and comput the outputs
         size_t nLayerCount = acts.size() - 1;
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             Tensor<T>& x = acts.at(nLayer);
             Tensor<T>& w = wts.at(nLayer);
-            Tensor<T>& b = bs.at(nLayer);           
+            Tensor<T>& b = bs.at(nLayer);
             const Tensor<T>& y = w.transpose() * x + b;
             zs.push_back(y);
             acts.at(nLayer + 1) = y.apply(getActivation<T>(activations.at(nLayer)));
@@ -285,34 +286,47 @@ public:
             return cost.squared() / ((T)2);
     }
 
-    void train(const Tensor<T>& trainingData, const Tensor<T> labels, size_t epochs, float learnRate, bool seeCost = false) {
-        size_t nTrainCount = trainingData.dim()[0];
-        size_t nOutputs = getOutput().dim()[0];
-        Tensor<T> totalLoss(nOutputs, 1);
+    void train(const Tensor<T>& trainingData, const Tensor<T> labels, size_t epochs, size_t batchSize, float learnRate, bool seeCost = false) {
+        (void) trainingData;
+        (void) labels;
+        (void) epochs;
+        (void) batchSize;
+        (void) learnRate;
+        (void) seeCost;
+        // size_t nTrainCount = trainingData.dim()[0];
+        // size_t nOutputs = getOutput().dim()[0];
 
-        for(size_t nIteration = 0; nIteration < epochs; ++nIteration) {
-            totalLoss.fill((T)0);
-            for(size_t nDataPoint = 0; nDataPoint < nTrainCount; ++nDataPoint) {
-                const Tensor<T>& inp = trainingData.row(nDataPoint).transpose();
-                const Tensor<T>& exp = labels.row(nDataPoint).transpose();
-                //Returns the loss of the function (internally calls forward and deposits predictions at acts.end())
+        // //create uniquely random batches
 
-                totalLoss += this->cost(inp, exp);  
-                
-                //Calculates the gradiants for this iteration and stores internally
-                this->backward(exp, learnRate);
+        // for(size_t i{0}; i < trainingData.dim()[1]; i++) {
+            
+        // }
 
-            }
-            totalLoss = totalLoss / (T)nTrainCount;
+        // for(size_t i{0}; i < epochs; i++) {
+            
+        // }
 
-            this->learn();
 
-            if(seeCost) {
-                T avgCost = totalLoss.average();
-                std::cout << "epoch " << nIteration << ": ";
-                std::cout << avgCost << '\n';
-            }
-        }
+        // Tensor<T> totalLoss(nOutputs, 1);
+        // for(size_t nIteration{0}; nIteration < epochs; ++nIteration) {
+        //     totalLoss.fill((T)0);
+        //     for(size_t nDataPoint{0}; nDataPoint < nTrainCount; ++nDataPoint) {
+        //         const Tensor<T>& inp = trainingData.row(nDataPoint).transpose();
+        //         const Tensor<T>& exp = labels.row(nDataPoint).transpose();
+        //         //Returns the loss of the function (internally calls forward and deposits predictions at acts.end())
+        //         totalLoss += this->cost(inp, exp);
+        //         //Calculates the gradiants for this iteration and stores internally
+        //         this->backward(exp, learnRate);
+        //     }
+        //     totalLoss = totalLoss / (T)nTrainCount;
+        //     this->learn();
+        //     if(seeCost) {
+        //         T avgCost = totalLoss.average();
+        //         std::cout << "epoch[" << nIteration << "]\t";
+        //         std::cout << "cost: " << avgCost << '\n';
+        //         std::cout << "\x1b[1A";
+        //     }
+        // }
     }
 
 private:
@@ -347,7 +361,7 @@ private:
             deltas.at(nLayer) = layerDelta;
         }
         //Calculate the Gradiants based on the Deltas for each layer
-        for (size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for (size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             Tensor<T> wGrad = (acts.at(nLayer) * deltas.at(nLayer).transpose());
             Tensor<T> bGrad = deltas.at(nLayer);
 
@@ -365,7 +379,7 @@ private:
 
     void learn() {
         size_t nLayerCount = acts.size() - 1;
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             Tensor<T> bGrad = (bGrads.at(nLayer) / (T) nCountPropagated);
             Tensor<T> wtGrad = (wtGrads.at(nLayer) / (T) nCountPropagated);
             wts.at(nLayer) -= wtGrad;
@@ -393,7 +407,7 @@ private:
         char name[20];
     
         std::cout << modelName  << " Gradiants" << " = [\n";
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             snprintf(name, sizeof(name), "Bias%lld", nLayer);
             bGrads.at(nLayer).print(name);
             
@@ -408,7 +422,7 @@ private:
         char name[20];
     
         std::cout << modelName  << " Activations" << " = [\n";
-        for(size_t nLayer = 0; nLayer < nLayerCount + 1; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount + 1; ++nLayer) {
             snprintf(name, sizeof(name), "Act%lld", nLayer);
             acts.at(nLayer).print(name);
         }
@@ -420,7 +434,7 @@ private:
         char name[20];
     
         std::cout << modelName  << " Gradiants" << " = [\n";
-        for(size_t nLayer = 0; nLayer < nLayerCount; ++nLayer) {
+        for(size_t nLayer{0}; nLayer < nLayerCount; ++nLayer) {
             snprintf(name, sizeof(name), "Z%lld", nLayer);
             zs.at(nLayer).print(name);
         }

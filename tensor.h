@@ -62,6 +62,14 @@ public:
     //METHODS
     //===================================================================
 
+    T& at(size_t i) {
+        return m_data[i];
+    }
+
+    T at(size_t i) const {
+        return m_data[i];
+    }
+
     T& at(size_t r, size_t c) {
         return m_data[r * cols + c];
     }
@@ -104,6 +112,10 @@ public:
     //=============================
     // MODIFY THE TENSOR
     //=============================
+    Tensor& clear() {
+        memset(m_data.data(), 0, sizeof(T) * m_data.size());
+        return *this;
+    }
 
     Tensor& fill(T fValue) {
         for(size_t i = 0; i < rows * cols; ++i)

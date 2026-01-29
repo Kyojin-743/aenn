@@ -39,7 +39,7 @@ int main()
     std::cout << "<<========================>>" << std::endl;
     const Tensor<float>& trainData = data.col(0, 2);
     const Tensor<float>& trainLabels = data.col(2, 2);
-    m.train(trainData, trainLabels, 10000, 1, true);
+    m.train(trainData, trainLabels, 5000, 1, true);
     std::cout << "Done!\n" << std::endl;
     
     for(size_t nDataPoint = 0; nDataPoint < 4; ++nDataPoint) {
@@ -52,20 +52,6 @@ int main()
 
         std::cout << "Input[" << nDataPoint << "] = " << data.col(0, 2).row(nDataPoint);
         std::cout << " Prediction[" << nDataPoint << "] = " << predictionIndex[0] << std::endl;
-
-        // char name[20];
-        // snprintf(name, sizeof(name), "Pred[%lld]", nDataPoint);
-        // Tensor<float> results = m.forward(inp);
-        // results.print(name);
-
-        // results = softMax(results);
-        // snprintf(name, sizeof(name), "SoftMax Pred[%lld]", nDataPoint);
-        // results.print(name);
-
-        // snprintf(name, sizeof(name), "Avg. Cost[%lld]: ", nDataPoint);
-        // Tensor<float> c = m.cost(inp, exp);
-        // float avgCost = avg(c);
-        // std::cout << name << avgCost << std::endl;
     }
 
     return 0;

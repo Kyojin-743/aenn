@@ -8,7 +8,7 @@ xor: test_xor.cpp
 	g++ .\test_xor.cpp -o xor.exe $(CPPFLAGS)
 
 mnist: test_mnist.cpp
-	g++ .\test_mnist.cpp -o mnist.exe $(CPPFLAGS)
+	g++ -O3 .\test_mnist.cpp -o mnist.exe $(CPPFLAGS)
 
 clean:
 	rm *.o *.exe

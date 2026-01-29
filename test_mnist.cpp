@@ -1,6 +1,9 @@
 #include <ctime>
 #include <iostream>
 #include <fstream>
+#include <unordered_map>
+#include <chrono>
+#include <ctime>
 
 #include "nn.h"
 
@@ -94,55 +97,39 @@ void loadIdx1ToVec(std::vector<uint8_t>& vecLabels, const char filePath[]) {
 }
 
 /*
-    Selects nTrainCount random training images and compresses them into a tensor that the NN library expects
-        Each respective Row represents a single input image / label
-        For this test, destLabels has dim {nTrainCount, 1}
-                       destImages has dim {nTrainCount, 784}
+    Converts the vectors to tensors
 */
-void makeTensorSet(size_t nSetCount, std::vector<std::vector<uint8_t>>& srcImages, std::vector<uint8_t>& srcLabels, Tensor<float>& destImages, Tensor<float>& destLabels) {
+void makeTensorSet(std::vector<std::vector<uint8_t>>& srcImages, std::vector<uint8_t>& srcLabels, Tensor<float>& destImages, Tensor<float>& destLabels) {
     constexpr size_t nImageSize = 784;
     constexpr size_t nLabelSize = 10;
     assert(srcImages.size() == srcLabels.size());
-    size_t nImageCount = srcLabels.size();
+    const size_t nSetCount = srcImages.size();
 
-    std::vector<float> vecTrainImagesConcatonated;
-    std::vector<float> vecTrainLabelOutputs;
+    assert(destImages.dim()[0] == destLabels.dim()[0]);
+    assert(destLabels.dim()[0] == nSetCount);
+    assert(destImages.dim()[1] = nImageSize);
+    assert(destLabels.dim()[1] = nLabelSize);
 
-    vecTrainImagesConcatonated.reserve(nImageSize * nSetCount);
-    vecTrainLabelOutputs.reserve(nSetCount);
-
-    for(size_t i = 0; i < nSetCount; ++i){
-        size_t nTrainImageIndex = rand() % nImageCount;   //select random training image to use in training
-        std::vector<uint8_t>& randomImage = srcImages.at(nTrainImageIndex);
-        uint8_t label = srcLabels.at(nTrainImageIndex);
-
-        for(size_t j = 0; j < nImageSize; ++j) {
-            float value = 1.0f * randomImage.at(j);
-            vecTrainImagesConcatonated.push_back(value);
+    for(size_t i{0}; i < nSetCount; i++ ) {
+        for(size_t j{0}; j < srcImages.at(i).size(); j++) {
+            destImages.at(i*nImageSize + j) = srcImages.at(i).at(j);
         }
 
-        for(size_t j = 0; j < nLabelSize; ++j) {
-            float value = 1.0f * (j == label);
-            vecTrainLabelOutputs.push_back(value);
-        }
+    destLabels.clear(); //sets all to 0
+    destLabels.at(i*10 + srcLabels.at(i)) = 1.0f;
     }
-    destImages.resize(nSetCount, nImageSize);
-    destImages.copy(vecTrainImagesConcatonated);
 
-    destLabels.resize(nSetCount, nLabelSize);
-    destLabels.copy(vecTrainLabelOutputs);
+    destImages.transpose();
+    destLabels.transpose();
 }
 
-int main(void)
-{   
+int main(void) {
 
     srand(time(0));
 
     constexpr float fLearnRate = 1e-1;
-    constexpr size_t nEpochs = 5000;
-    constexpr size_t nTrainCount = 100;
-    constexpr char nTestCount = 100;
-
+    constexpr size_t nEpochs = 1000;
+    constexpr size_t nBatchSize = 100;
     //Construct the Model Description
     /*
         MNIST Model:
@@ -153,53 +140,63 @@ int main(void)
                 Activation sigmoid
             10 outputs
     */
-    const std::vector<size_t> layerDesc = {784, 16, 16, 10};
-    std::vector<ActiVationType> layerActivations = {
-        ActiVationType::Sigmoid,
-        ActiVationType::Sigmoid,
-        ActiVationType::Sigmoid
-    };
 
     //Create Model from the Layer sizes and activations
-    Model<float> m(layerDesc, layerActivations);
+    // Model<float> m(layerDesc, layerActivations);
+    Model<float> m(
+        std::vector<size_t>({784, 16, 16, 10}), 
+        std::vector<ActiVationType>({ ActiVationType::Sigmoid, ActiVationType::Sigmoid, ActiVationType::Sigmoid}));
 
-    //Load Training Images 
+    
     std::vector<std::vector<uint8_t>> vecTrainImages;
     std::vector<uint8_t> vecTrainLabels;
-    loadIdx3ToVec(vecTrainImages, "data/train-images.idx3-ubyte");
-    loadIdx1ToVec(vecTrainLabels, "data/train-labels.idx1-ubyte");
-    
-    //Grab Random Subset of training images to train the models with
-    Tensor<float> trainingData(nTrainCount, 28*28);
-    Tensor<float> trainingOutputs(nTrainCount, 10);
-    makeTensorSet(nTrainCount, vecTrainImages, vecTrainLabels, trainingData, trainingOutputs);
-
-    //Load Testing Images 
     std::vector<std::vector<uint8_t>> vecTestImages;
     std::vector<uint8_t> vecTestLabels;
-    loadIdx3ToVec(vecTestImages, "data/t10k-images.idx3-ubyte");
-    loadIdx1ToVec(vecTestLabels, "data/t10k-labels.idx1-ubyte");
+    size_t nTrainCount, nTestCount;
+    std::cout << "Loading Images...\n";
+    {
+        auto start = std::chrono::system_clock::now();
+        loadIdx3ToVec(vecTrainImages, "data/train-images.idx3-ubyte");
+        loadIdx1ToVec(vecTrainLabels, "data/train-labels.idx1-ubyte");
+        assert(vecTrainImages.size() == vecTrainLabels.size());
+        nTrainCount = vecTrainImages.size();
+        loadIdx3ToVec(vecTestImages, "data/t10k-images.idx3-ubyte");
+        loadIdx1ToVec(vecTestLabels, "data/t10k-labels.idx1-ubyte");
+        assert(vecTestImages.size() == vecTestLabels.size());
+        nTestCount = vecTestImages.size();
+        auto final = std::chrono::system_clock::now();
+        std::cout << "Done! (" << (final - start).count() << ")" << std::endl;
+    }
 
-    //Grab Random Subset of test images to verify model against
-    Tensor<float> testingData(nTestCount, 28*28);
-    Tensor<float> testingOutputs(nTestCount, 10);
-    makeTensorSet(nTestCount, vecTestImages, vecTestLabels, testingData, testingOutputs);
+    Tensor<float> trainData(nTrainCount, 28*28);
+    Tensor<float> trainLabels(nTrainCount, 10);
+    Tensor<float> testData(nTestCount, 28*28);
+    Tensor<float> testLabels(nTestCount, 10);
+    std::cout << "Creating Tensor Sets...\n";
+    {
+        auto start = std::chrono::system_clock::now();
+        makeTensorSet(vecTrainImages, vecTrainLabels, trainData, trainLabels);
+        makeTensorSet(vecTestImages, vecTestLabels, testData, testLabels);
+        auto final = std::chrono::system_clock::now();
+        std::cout << "Done! (" << (final - start).count() << ")" << std::endl;
+    }
+    stbi_write_png("test.png",28, 28, 1, trainData.col(0,1).data(), 28);
+    return 0;
 
-    std::cout << "<<========================>>" << std::endl;
-    std::cout << "Training Model..." << std::endl;
-    std::cout << "<<========================>>" << std::endl;
 
-    m.train(trainingData, trainingOutputs, nEpochs, fLearnRate, true);
+    std::cout << "Training Model...\n";
+    {
+        auto start = std::chrono::system_clock::now();
+        m.train(trainData, trainLabels, nEpochs, nBatchSize, fLearnRate, true);
+        auto final = std::chrono::system_clock::now();
+        std::cout << "Done! (" << (final - start).count() << ")" << std::endl;
+    }
 
-    std::cout << "Done!\n" << std::endl;
-
-    stbi_write_png("test.png",28, 28, 1, (vecTestImages.at(nTestCount)).data(), 28);
-    std::cout << (int)vecTestLabels.at(nTestCount) << std::endl;
 
     size_t correct = 0;
-    for(size_t nTestImage = 0; nTestImage < nTestCount; ++nTestImage) {
-        const Tensor<float>& inp = testingData.row(nTestImage).transpose();
-        const Tensor<float>& exp = testingOutputs.row(nTestImage).transpose();
+    for(size_t nTestImage{0}; nTestImage < nTestCount; ++nTestImage) {
+        const Tensor<float>& inp = testData.row(nTestImage).transpose();
+        const Tensor<float>& exp = testLabels.row(nTestImage).transpose();
 
         Tensor<float> actual = m.forward(inp);
 
@@ -215,7 +212,7 @@ int main(void)
     float accuracy = (float)correct / (float)nTestCount;
     std::cout << "Accuracy = " << std::setw(10) << std::fixed << std::setprecision(3) << accuracy << std::endl;
 
-    m.saveModelParams("TrainedModel.nn");
+    // m.saveModelParams("TrainedModel.nn");
 
     return 0;
 }
