@@ -1,17 +1,30 @@
-CPPFLAGS:= -Wextra -Wall -Werror -pedantic -std=c++20 -g -lm
+BUILDDIR:=bin
+RELEASEDIR:=$(BUILDDIR)/release
+DEBUGDIR:=$(BUILDDIR)/debug
 
-.phony : all
+SRCDIR:=src
+INCDIR:=inc 
+THIRDPARTY:=thirdparty
+TESTDIR:=tests
 
-all: xor mnist
+SRCS := $(wildcard $(SRCDIR)/*.cpp)
+INCS := $(wildcard $(INCDIR)/*.h)
 
-xor: test_xor.cpp
-	g++ .\test_xor.cpp -o xor.exe $(CPPFLAGS)
+CC:= g++
+CCFLAGS:= -std=c++23 -I $(INCDIR) -I $(THIRDPARTY)/inc 
 
-mnist: test_mnist.cpp
-	g++ -O3 .\test_mnist.cpp -o mnist.exe $(CPPFLAGS)
+DEBUGFLAGS:= -O0 -g -Wall -Wpedantic -Wno-unused-const-variable -Wno-comment $(CCFLAGS)
+RELEASEFLAGS:= -O3 $(CCFLAGS)
+
+.phony:= tests all 
+
+all: tests
+
+tests: auto-grad 
+
+auto-grad: $(SRCS) $(INCS)	$(TESTDIR)/auto-grad.cpp
+	mkdir -p $(DEBUGDIR)
+	$(CC) $(SRCS) $(TESTDIR)/auto-grad.cpp -o $(DEBUGDIR)/auto-grad $(DEBUGFLAGS)
 
 clean:
-	rm *.o *.exe
-
-
-
+	rm -rf bin/
