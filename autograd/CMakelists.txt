@@ -1,0 +1,9 @@
+# autograd/CMakeLists.txt
+
+add_library(autograd STATIC
+    src/autograd.cpp
+)
+
+target_include_directories(autograd PUBLIC include)
+
+target_link_libraries(autograd PUBLIC tensor)

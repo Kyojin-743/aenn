@@ -1,0 +1,18 @@
+#CMakeLists.txt
+
+cmake_minimum_required(VERSION 3.16)
+project(AENN CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+enable_testing()
+
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+add_subdirectory(thirdparty/googletest)
+
+add_subdirectory(tensor)
+add_subdirectory(autograd)
+# add_subdirectory(model)
+add_subdirectory(examples)
