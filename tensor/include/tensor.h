@@ -2,9 +2,12 @@
 #pragma once
 
 #include <vector>
+#include <array>
 #include <memory>   //shared_ptr
 #include <string>  
 #include <iostream>
+
+#include <cstddef> //ptrdiff_t
 
 namespace AennTensor {
     using data_type = float;
@@ -12,6 +15,8 @@ namespace AennTensor {
     using Shape = std::vector<size_t>;
     using Strides = std::vector<size_t>;
     using Index = std::vector<size_t>;
+    using Range = std::array<ptrdiff_t, 2>;
+    using Ranges = std::vector<Range>;
 
     enum Distribution {
         Uniform,
@@ -28,6 +33,7 @@ namespace AennTensor {
     class Tensor {
     public:
         //Constructors
+        Tensor() {};    //default
         explicit Tensor(const Shape& shape, data_type fill = static_cast<data_type>(0));
         explicit Tensor(const Shape& shape, const Vector& vec);
 
@@ -57,21 +63,29 @@ namespace AennTensor {
         data_type& operator[](size_t flat_idx);
         const data_type& operator[](size_t flat_idx) const;
 
+        Tensor operator[](const Ranges& nd_range);
+        const Tensor operator[](const Ranges& nd_range) const;
+
+
         //Friends
         friend std::ostream& operator<<(std::ostream& os, const Tensor& tensor);
-
 
         //misc functions
         std::string tostr(bool pretty=true) const;
         const char* c_str(bool pretty=true) const;
+        Tensor reshape(const Shape& new_shape) const;
+        Tensor transpose(void) const;
+        Tensor slice(const Ranges& nd_range) const;
+
 
         //fields
         std::shared_ptr<Data> data;
         Shape shape;
         Strides strides;
+        size_t offset;
     };
 
     size_t numel(const Shape& shape);
-    size_t get_flat_index(const Shape& shape, const Index& index);
+    size_t get_flat_index(const Shape& shape, const Strides&, const Index& index);
     Tensor matmul(const Tensor& a, const Tensor& b);
 }

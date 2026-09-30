@@ -19,20 +19,18 @@ namespace AennTensor {
             return prod;
         }
         
-        size_t get_flat_index(const Shape& shape, const Index& index) {
-            assert(shape.size() == index.size());
-            size_t flat_idx = 0;
-            size_t current_stride = 1;
+        size_t get_flat_index(const Shape& shape, const Strides& strides, const Index& index) {
+            ASSERT(shape.size() == index.size()) << "Dim mismatch between: Shape (" << shape.size() << ") and Index (" << index.size() << ")" ;
+            ASSERT(shape.size() == strides.size()) << "Dim mismatch between: Shape (" << shape.size() << ") and Stride (" << strides.size() << ")" ;
 
-            // Traverse from rightmost (innermost) dimension to leftmost
-            for (int d = static_cast<int>(shape.size()) - 1; d >= 0; --d) {
+            size_t flat_idx = 0;
+            for (size_t d = 0; d < shape.size(); ++d) {
                 if (index[d] >= shape[d]) {
                     std::cerr << "index[" << d << "]=" << index[d] 
                             << ", shape[" << d << "]=" << shape[d] << "\n";
                     exit(1);
                 }
-                flat_idx += index[d] * current_stride;
-                current_stride *= shape[d];
+                flat_idx += index[d] * strides[d];
             }
 
             return flat_idx;
@@ -40,7 +38,11 @@ namespace AennTensor {
 
         Tensor::Tensor(const Shape& shape, data_type fill) {
             this->shape = shape;
-            this->strides = shape;
+            this->strides = Strides(shape.size(), 1);
+            this->offset = 0;
+            for (int i = static_cast<int>(shape.size()) - 2; i >= 0; --i) {
+                strides[i] = strides[i + 1] * shape[i + 1];
+            }
             data = std::make_shared<Data>(numel(shape));
             if(fill != static_cast<data_type>(0)) {
                 for(auto& elem : data->data)
@@ -50,7 +52,11 @@ namespace AennTensor {
 
         Tensor::Tensor(const Shape& shape, const Vector& vec) {
             this->shape = shape;
-            this->strides= shape;
+            this->strides = Strides(shape.size(), 1);
+            this->offset = 0;
+            for (int i = static_cast<int>(shape.size()) - 2; i >= 0; --i) {
+                strides[i] = strides[i + 1] * shape[i + 1];
+            }
             data = std::make_shared<Data>(vec);
         }
 
@@ -86,7 +92,7 @@ namespace AennTensor {
         }
 
         Tensor Tensor::Identity(const Shape& shape) {//enforce square
-            assert(shape.size() == 2 && "TODO: generalized contraction-neutral identity tensor creation");
+            ASSERT(shape.size() == 2) << "Expected 2, got: " << shape.size();
             Tensor t(shape, static_cast<data_type>(0));
             size_t n = shape[0];
             for(size_t i(0ULL); i < n; ++i) {
@@ -126,8 +132,6 @@ namespace AennTensor {
     std::string Tensor::tostr(bool pretty) const {
         if (shape.empty()) return "[]";
 
-        // Row-major strides: strides[last_dim] = 1
-        // strides[i] = strides[i + 1] * shape[i + 1]
         Strides strides(shape.size(), 1);
         for (int i = static_cast<int>(shape.size()) - 2; i >= 0; --i) {
             strides[i] = strides[i + 1] * shape[i + 1];
@@ -154,6 +158,71 @@ namespace AennTensor {
         
     const char* Tensor::c_str(bool pretty) const {
         return strdup(tostr(pretty).c_str());
+    }
+
+    Tensor Tensor::reshape(const Shape& new_shape) const  {
+        ASSERT(numel(this->shape) == numel(new_shape)) 
+        << "Reshaping cannot " 
+        << ((numel(this->shape) > numel(new_shape))? "downsize": "upsize") << " the number of elements" 
+        << "from " << numel(this->shape) << " to " << numel(new_shape);
+        
+        Tensor t;
+        size_t ndim(new_shape.size());
+
+        t.shape = new_shape;
+        t.data = this->data;
+        t.strides = Strides(ndim, 1);
+        t.offset = 0;
+
+        if (ndim <= 0) return t;
+
+        for (int i(static_cast<int>(ndim) - 2); i >= 0; --i) {
+            t.strides[i] = t.strides[i + 1] * new_shape[i + 1];
+        }
+
+        return t;
+    }
+
+    Tensor Tensor::transpose() const {
+        ASSERT(this->shape.size() == 2) << "Transpose requires a 2-dimensional tensor. Got rank: " << this->shape.size();
+        Tensor t;
+        t.data = this->data; 
+        t.shape = {this->shape[1], this->shape[0]};
+        t.strides = {this->strides[1], this->strides[0]};
+        return t;
+    }
+
+    Tensor Tensor::slice(const Ranges& nd_range) const {
+        ASSERT(nd_range.size() == this->shape.size()) 
+            << "Slice dimensions (" << nd_range.size() 
+            << ") must match tensor rank (" << this->shape.size() << ").";
+
+        Tensor view;
+        view.data = this->data;
+        view.strides = this->strides;
+        view.shape.resize(this->shape.size());
+
+        size_t new_offset = this->offset;
+
+        for (size_t d = 0; d < this->shape.size(); ++d) {
+            ptrdiff_t raw_start = nd_range[d][0];
+            ptrdiff_t raw_stop  = nd_range[d][1];
+            size_t start = (raw_start == -1) ? 0 : static_cast<size_t>(raw_start);
+            size_t stop  = (raw_stop  == -1) ? this->shape[d] : static_cast<size_t>(raw_stop);
+
+        if (raw_start != -1 && raw_start == raw_stop) {
+            stop = start + 1;
+        }
+
+            ASSERT(start < stop) << "Slice start (" << start << ") must be less than stop (" << stop << ").";
+            ASSERT(stop <= this->shape[d]) << "Slice stop (" << stop << ") out of bounds for dim " << d << " with size " << this->shape[d];
+
+            new_offset += start * this->strides[d];
+            view.shape[d] = stop - start;
+        }
+
+        view.offset = new_offset;
+        return view;
     }
 
     Tensor Tensor::operator+(data_type scalar) {
@@ -189,7 +258,7 @@ namespace AennTensor {
     }
 
     Tensor Tensor::operator+(const Tensor& other) {
-        assert(this->shape == other.shape);
+        ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
         size_t num_elements = numel(this->shape);   
         for (size_t i(0ULL); i < num_elements; ++i) {
@@ -199,7 +268,7 @@ namespace AennTensor {
     }
 
     Tensor Tensor::operator-(const Tensor& other) {
-        assert(this->shape == other.shape);
+        ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
         size_t num_elements = numel(this->shape);   
         for (size_t i(0ULL); i < num_elements; ++i) {
@@ -209,7 +278,7 @@ namespace AennTensor {
     }
 
     Tensor Tensor::operator*(const Tensor& other) {
-        assert(this->shape == other.shape);
+        ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
         size_t num_elements = numel(this->shape);   
         for (size_t i(0ULL); i < num_elements; ++i) {
@@ -219,7 +288,7 @@ namespace AennTensor {
     }
 
     Tensor Tensor::operator/(const Tensor& other) {
-        assert(this->shape == other.shape);
+        ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
         size_t num_elements = numel(this->shape);   
         for (size_t i(0ULL); i < num_elements; ++i) {
@@ -229,19 +298,33 @@ namespace AennTensor {
     }
 
     data_type& Tensor::operator[](const Index& index) {
-        return (this->data->data)[get_flat_index(this->shape, index)];
+        auto flat_idx = get_flat_index(this->shape, this->strides, index);
+        ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
+        return (this->data->data)[flat_idx + this->offset];
     }
     
     const data_type& Tensor::operator[](const Index& index) const {
-        return (this->data->data)[get_flat_index(this->shape, index)];
+        auto flat_idx = get_flat_index(this->shape, this->strides, index);
+        ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
+        return (this->data->data)[flat_idx + this->offset];
     }
 
     data_type& Tensor::operator[](size_t flat_idx) {
-        return (this->data->data)[flat_idx];
+        ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
+        return (this->data->data)[flat_idx + this->offset];
     }
 
     const data_type& Tensor::operator[](size_t flat_idx) const {
-        return (this->data->data)[flat_idx];
+        ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
+        return (this->data->data)[flat_idx + this->offset];
+    }
+
+    Tensor Tensor::operator[](const Ranges& nd_range) {
+        return slice(nd_range);
+    }   
+
+    const Tensor Tensor::operator[](const Ranges& nd_range) const {
+        return slice(nd_range);
     }
 
     std::ostream& operator<<(std::ostream& os, const Tensor& tensor) {
