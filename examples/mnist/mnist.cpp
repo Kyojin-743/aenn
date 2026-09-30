@@ -33,6 +33,5 @@ int main(void) {
 
     std::cout << AennTensor::matmul(t4, t5) << "\n\n";
 
-
     std::cout << std::endl;
 }
