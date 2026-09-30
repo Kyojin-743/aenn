@@ -202,13 +202,13 @@ namespace AennTensor {
         view.strides = this->strides;
         view.shape.resize(this->shape.size());
 
-        size_t new_offset = this->offset;
+        size_t new_offset(this->offset);
 
-        for (size_t d = 0; d < this->shape.size(); ++d) {
-            ptrdiff_t raw_start = nd_range[d][0];
-            ptrdiff_t raw_stop  = nd_range[d][1];
-            size_t start = (raw_start == -1) ? 0 : static_cast<size_t>(raw_start);
-            size_t stop  = (raw_stop  == -1) ? this->shape[d] : static_cast<size_t>(raw_stop);
+        for (size_t d(0ULL); d < this->shape.size(); ++d) {
+            ptrdiff_t raw_start(nd_range[d][0]);
+            ptrdiff_t raw_stop(nd_range[d][1]);
+            size_t start((raw_start == -1) ? 0 : static_cast<size_t>(raw_start));
+            size_t stop((raw_stop  == -1) ? this->shape[d] : static_cast<size_t>(raw_stop));
 
         if (raw_start != -1 && raw_start == raw_stop) {
             stop = start + 1;
@@ -260,7 +260,7 @@ namespace AennTensor {
     Tensor Tensor::operator+(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements = numel(this->shape);   
+        size_t num_elements(numel(this->shape));   
         for (size_t i(0ULL); i < num_elements; ++i) {
             t[i] = (*this)[i] + other[i];
         }
@@ -270,7 +270,7 @@ namespace AennTensor {
     Tensor Tensor::operator-(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements = numel(this->shape);   
+        size_t num_elements(numel(this->shape)); 
         for (size_t i(0ULL); i < num_elements; ++i) {
             t[i] = (*this)[i] - other[i];
         }
@@ -280,7 +280,7 @@ namespace AennTensor {
     Tensor Tensor::operator*(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements = numel(this->shape);   
+        size_t num_elements(numel(this->shape));
         for (size_t i(0ULL); i < num_elements; ++i) {
             t[i] = (*this)[i] * other[i];
         }
@@ -290,7 +290,7 @@ namespace AennTensor {
     Tensor Tensor::operator/(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements = numel(this->shape);   
+        size_t num_elements(numel(this->shape));
         for (size_t i(0ULL); i < num_elements; ++i) {
             t[i] = (*this)[i] / other[i];
         }
@@ -298,13 +298,13 @@ namespace AennTensor {
     }
 
     data_type& Tensor::operator[](const Index& index) {
-        auto flat_idx = get_flat_index(this->shape, this->strides, index);
+        size_t flat_idx(get_flat_index(this->shape, this->strides, index));
         ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
         return (this->data->data)[flat_idx + this->offset];
     }
     
     const data_type& Tensor::operator[](const Index& index) const {
-        auto flat_idx = get_flat_index(this->shape, this->strides, index);
+        size_t flat_idx(get_flat_index(this->shape, this->strides, index));
         ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
         return (this->data->data)[flat_idx + this->offset];
     }
@@ -337,16 +337,16 @@ namespace AennTensor {
         ASSERT(b.shape.size() == 2) << "Expected Degree 2. Got: " << b.shape.size();
         ASSERT(a.shape[1] == b.shape[0]) << "Inner dimensions must match. Got: " << a.shape[1] << " and " << b.shape[0];
 
-        size_t M = a.shape[0];
-        size_t K = a.shape[1];
-        size_t N = b.shape[1];
+        size_t M(a.shape[0]);
+        size_t K(a.shape[1]);
+        size_t N(b.shape[1]);
 
         Tensor t({M, N}, static_cast<data_type>(0));
 
-        for (size_t i = 0; i < M; ++i) {
-            for (size_t k = 0; k < K; ++k) {
-                data_type val_a = a[{i, k}];
-                for (size_t j = 0; j < N; ++j) {
+        for (size_t i(0ULL); i < M; ++i) {
+            for (size_t k(0ULL); k < K; ++k) {
+                data_type val_a(a[{i, k}]);
+                for (size_t j(0ULL); j < N; ++j) {
                     t[{i, j}] += val_a * b[{k, j}];
                 }
             }

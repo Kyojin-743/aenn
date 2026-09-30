@@ -77,7 +77,6 @@ namespace AennTensor {
         Tensor transpose(void) const;
         Tensor slice(const Ranges& nd_range) const;
 
-
         //fields
         std::shared_ptr<Data> data;
         Shape shape;
