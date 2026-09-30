@@ -1,3 +1,4 @@
+//AENN/tensor/tensor.h
 #pragma once
 
 #include <vector>
@@ -26,8 +27,11 @@ namespace AennTensor {
 
     class Tensor {
     public:
-        Tensor(const Shape& shape, data_type fill = static_cast<data_type>(0));
+        //Constructors
+        explicit Tensor(const Shape& shape, data_type fill = static_cast<data_type>(0));
+        explicit Tensor(const Shape& shape, const Vector& vec);
 
+        //Static Functions 
         static Tensor Zeroes(const Shape& shape);
         static Tensor Ones(const Shape& shape);
         static Tensor Random(const Shape& shape, 
@@ -36,10 +40,7 @@ namespace AennTensor {
             Distribution dist = Distribution::Uniform);
         static Tensor Identity(const Shape& shape);
 
-
-        std::string tostr(bool pretty=true) const;
-        const char* c_str(bool pretty=true) const;
-
+        //Overloads
         Tensor operator+(data_type scalar);
         Tensor operator-(data_type scalar);
         Tensor operator*(data_type scalar);
@@ -56,8 +57,15 @@ namespace AennTensor {
         data_type& operator[](size_t flat_idx);
         const data_type& operator[](size_t flat_idx) const;
 
+        //Friends
         friend std::ostream& operator<<(std::ostream& os, const Tensor& tensor);
 
+
+        //misc functions
+        std::string tostr(bool pretty=true) const;
+        const char* c_str(bool pretty=true) const;
+
+        //fields
         std::shared_ptr<Data> data;
         Shape shape;
         Strides strides;
@@ -65,4 +73,5 @@ namespace AennTensor {
 
     size_t numel(const Shape& shape);
     size_t get_flat_index(const Shape& shape, const Index& index);
+    Tensor matmul(const Tensor& a, const Tensor& b);
 }

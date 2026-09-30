@@ -1,4 +1,4 @@
-#tensor/CMakeLists.txt
+#AENN/tensor/CMakeLists.txt
 
 #==========================================================
 # Tensor Library
@@ -14,6 +14,10 @@ target_include_directories(tensor
         $<INSTALL_INTERFACE:include>
 )
 
+target_link_libraries(tensor 
+    PRIVATE
+        smartassert)
+
 #==========================================================
 # Tensor Test Stuff
 #==========================================================
@@ -24,6 +28,7 @@ add_executable(test_tensor
 target_link_libraries(test_tensor
     PRIVATE
         tensor
+        smartassert
         gtest_main  
 )
 
