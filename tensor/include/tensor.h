@@ -1,63 +1,68 @@
 #pragma once
 
 #include <vector>
-#include <memory>
+#include <memory>   //shared_ptr
+#include <string>  
+#include <iostream>
 
 namespace AennTensor {
-    //For now, no templates there will be 1 type for everything, per compile
     using data_type = float;
+    using Vector = std::vector<data_type>;
     using Shape = std::vector<size_t>;
     using Strides = std::vector<size_t>;
+    using Index = std::vector<size_t>;
+
+    enum Distribution {
+        Uniform,
+        Normal
+    };
 
     class Data {
     public:
-        explicit Data(size_t size) : data_(size, static_cast<data_type>(0)) {}
-        Data(const std::vector<data_type>& v_from) :  data_(v_from) {}
-
-        data_type* data() { return data_.data(); }
-        const data_type* data() const {return data_.data(); }
-        size_t size() { return data_.size(); }
-
-    private:
-        std::vector<data_type> data_;
+        explicit Data(size_t size) : data(size, static_cast<data_type>(0)) {};
+        Data(const Vector& vec) : data(vec) {};
+        Vector data;
     };
 
     class Tensor {
     public:
         Tensor(const Shape& shape, data_type fill = static_cast<data_type>(0));
-        Tensor(const Shape& shape, const std::vector<data_type>& v_from);
 
-        const Shape& shape() const { return shape_; }
-        const Strides& strides() const { return strides_; }
-        size_t size() const { return numel_; }
-        size_t ndim() const { return shape_.size(); }
-        bool is_contiguous() const;
+        static Tensor Zeroes(const Shape& shape);
+        static Tensor Ones(const Shape& shape);
+        static Tensor Random(const Shape& shape, 
+            data_type min = static_cast<data_type>(0), 
+            data_type max = static_cast<data_type>(1),
+            Distribution dist = Distribution::Uniform);
+        static Tensor Identity(const Shape& shape);
 
-        data_type* data() { return data_->data() + offset_; }
-        const data_type* data() const { return data_->data() + offset_; }
+
+        std::string tostr(bool pretty=true) const;
+        const char* c_str(bool pretty=true) const;
+
+        Tensor operator+(data_type scalar);
+        Tensor operator-(data_type scalar);
+        Tensor operator*(data_type scalar);
+        Tensor operator/(data_type scalar);
         
+        Tensor operator+(const Tensor& other);
+        Tensor operator-(const Tensor& other);
+        Tensor operator*(const Tensor& other);
+        Tensor operator/(const Tensor& other);
+
+        data_type& operator[](const Index& index);
+        const data_type& operator[](const Index& index) const;
+
         data_type& operator[](size_t flat_idx);
         const data_type& operator[](size_t flat_idx) const;
-        data_type& at(const Shape& indices);
 
-        Tensor reshape(const Shape& new_shape) const;
-        Tensor transpose(size_t dim0, size_t dim1) const;
+        friend std::ostream& operator<<(std::ostream& os, const Tensor& tensor);
 
-        Tensor add(const Tensor& other) const;
-        Tensor mul(const Tensor& other) const;
-        Tensor matmul(const Tensor& other) const;
-
-        Tensor operator+(const Tensor& other) const { return add(other); }
-        Tensor operator*(const Tensor& other) const { return mul(other); }
-    private:
-        std::shared_ptr<Data> data_;
-        Shape shape_;
-        Strides strides_;
-        size_t offset_{0};
-        size_t numel_{0};
-
-        void get_strides_();    
+        std::shared_ptr<Data> data;
+        Shape shape;
+        Strides strides;
     };
 
-     size_t calculate_numel(const Shape& shape);
+    size_t numel(const Shape& shape);
+    size_t get_flat_index(const Shape& shape, const Index& index);
 }
