@@ -6,4 +6,7 @@ add_library(autograd STATIC
 
 target_include_directories(autograd PUBLIC include)
 
-target_link_libraries(autograd PUBLIC tensor)
+target_link_libraries(autograd 
+    PRIVATE 
+        tensor 
+        smartassert )
