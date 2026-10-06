@@ -16,7 +16,6 @@ Tensor Library [https://github.com/abeschneider/tensor]</br>
 3. Auto-Grad library (wrapps tensors to facilitate training)
 4. Tensor library
    - Along Axes (or whole tensor): These ops return new tensor
-      - Sum, Mean, Min, Max
       - softmax, sigmoid
 
 ## Notes
