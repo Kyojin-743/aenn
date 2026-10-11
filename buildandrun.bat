@@ -1,1 +1,0 @@
-cmake . -B build && cmake --build build &&cd build && tensor\Debug\test_tensor.exe && cd ..
