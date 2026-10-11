@@ -4,5 +4,7 @@ add_executable(mnist
 
 target_link_libraries(mnist
     PRIVATE
+        smartassert
+        tensor
         autograd
 )

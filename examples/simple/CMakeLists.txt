@@ -5,4 +5,5 @@ add_executable(simple
 target_link_libraries(simple
     PRIVATE
         tensor
+        smartassert
 )

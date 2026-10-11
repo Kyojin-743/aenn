@@ -5,6 +5,7 @@
 #include <random>
 #include <iostream>
 #include <sstream>
+#include <string.h>
 #include <iomanip>
 #include <algorithm>    //erase
 
@@ -100,15 +101,28 @@ namespace AennTensor {
         data = std::make_shared<Data>(vec);
     }
 
-    Tensor::Tensor(const Tensor& other) {
-        this->shape = other.shape;
-        this->strides = other.strides;
-        this->offset = other.offset;
-        this->data = std::make_shared<Data>(numel(shape));
-        for (size_t i(0ULL); i < numel(shape); ++i) {
-            (*this)[i] = other[i];
+//Copy constructor (makes NEW tensor)
+Tensor::Tensor(const Tensor& other) {
+    this->shape = other.shape;
+    this->offset = 0; 
+
+    size_t total_elements = numel(this->shape);
+    size_t ndim = this->shape.size();
+
+    //recompute strides
+    this->strides = Strides(ndim, 1);
+    if (ndim > 0) {
+        for (int i = static_cast<int>(ndim) - 2; i >= 0; --i) {
+            this->strides[i] = this->strides[i + 1] * this->shape[i + 1];
         }
     }
+
+    //Copy data
+    this->data = std::make_shared<Data>(total_elements);
+    for (size_t i = 0; i < total_elements; ++i) {
+        this->data->data[i] = other[i]; //other's offset is applied automatically
+    }
+}
 
     Tensor Tensor::Zeroes(const Shape& shape) {
         Tensor t(shape);
@@ -449,6 +463,18 @@ namespace AennTensor {
         return t;
     }
 
+    Tensor& Tensor::operator=(const Tensor& other) {
+        if (this != &other) {
+            shape = other.shape;
+            strides = other.strides;
+            offset = other.offset;
+            if (other.data) {
+                this->data = std::make_shared<Data>(*other.data);
+            }
+        }
+        return *this;
+    }
+
     Tensor Tensor::operator+(data_type scalar) {
         Tensor t(this->shape);
         for(size_t i (0ULL); i < this->size(); ++i) {
@@ -534,13 +560,23 @@ namespace AennTensor {
     }
 
     data_type& Tensor::operator[](size_t flat_idx) {
-        ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
-        return (this->data->data)[flat_idx + this->offset];
+        Index idx = this->from_flat(flat_idx);
+        size_t actual_flat = get_flat_index(this->shape, this->strides, idx) + this->offset;
+        ASSERT(actual_flat < this->data->data.size()) 
+            << "Out of bounds access! Requested flat_idx: " << flat_idx 
+            << ", resolved buffer index: " << actual_flat 
+            << ", buffer size: " << this->data->data.size();
+        return (this->data->data)[actual_flat];
     }
 
     const data_type& Tensor::operator[](size_t flat_idx) const {
-        ASSERT(this->data->data.size() >= flat_idx) << "Index out of bounds";
-        return (this->data->data)[flat_idx + this->offset];
+        Index idx = this->from_flat(flat_idx);
+        size_t actual_flat = get_flat_index(this->shape, this->strides, idx) + this->offset;
+        ASSERT(actual_flat < this->data->data.size()) 
+            << "Out of bounds access! Requested flat_idx: " << flat_idx 
+            << ", resolved buffer index: " << actual_flat 
+            << ", buffer size: " << this->data->data.size();
+        return (this->data->data)[actual_flat];
     }
 
     Tensor Tensor::operator[](const Ranges& nd_range) {

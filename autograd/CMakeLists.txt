@@ -9,4 +9,4 @@ target_include_directories(autograd PUBLIC include)
 target_link_libraries(autograd 
     PRIVATE 
         tensor 
-        smartassert )
+        smartassert)
