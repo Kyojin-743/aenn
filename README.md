@@ -4,8 +4,10 @@ Personal Neural networking library for self-education. Implements Auto-Grad func
 
 ## Third Party
 
-GTest [https://github.com/google/googletest]</br>
-Tensor Library [https://github.com/abeschneider/tensor]</br>
+googletest [https://github.com/google/googletest]</br>
+imgui [https://github.com/ocornut/imgui/tree/docking]</br>
+implot [http://github.com/epezent/implot]</br>
+ImGuiFileDialog [https://github.com/aiekick/ImGuiFileDialog/tree/master]</br>
 
 ## TODO
 
