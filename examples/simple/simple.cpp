@@ -40,18 +40,13 @@ using namespace AennTensor;
 int pip(const char* format, ...) {
     enable_windows_ansi();
 
-    // 1. Carriage return (\r) + ANSI Clear Entire Line code (\033[2K)
     printf("\r\033[2K");
-
-    // 2. Format and print the message using variadic args
     va_list args;
     va_start(args, format);
     int written = vprintf(format, args);
     va_end(args);
 
-    // 3. Force output to display immediately
     fflush(stdout);
-
     return written;
 }
 
@@ -99,10 +94,6 @@ Tensor matmul_thr(const Tensor& a, const Tensor& b) {
 
     return t;
 }
-
-// ============================================================================
-// 1. Activation Base Class & Implementations
-// ============================================================================
 
 class Activation {
 public:
@@ -174,11 +165,6 @@ public:
     std::unique_ptr<Activation> clone() const override { return std::make_unique<Sigmoid>(*this); }
 };
 
-// ============================================================================
-// 2. Helper Utilities: Augmentation & Softmax
-// ============================================================================
-
-// Appends a column of 1.0s to the right of input [N, D] -> [N, D + 1] to serve as bias input
 Tensor append_bias_column(const Tensor& input) {
     size_t batch_size = input.shape[0];
     size_t features   = input.shape[1];
@@ -221,7 +207,7 @@ Tensor softmax(const Tensor& logits) {
 }
 
 // ============================================================================
-// 3. SimpleModel Definition
+// Simple Model
 // ============================================================================
 
 class SimpleModel {
@@ -286,10 +272,6 @@ public:
         }
     }
 };
-
-// ============================================================================
-// 4. Loss & Backpropagation
-// ============================================================================
 
 // Combined Softmax Cross-Entropy Loss
 Tensor cross_entropy_loss(const Tensor& logits, const Tensor& labels) {
@@ -356,10 +338,6 @@ void backward_step(SimpleModel& model, const Tensor& logits, const Tensor& label
     }
 }
 
-// ============================================================================
-// 5. Binary MNIST IDX Reader
-// ============================================================================
-
 uint32_t swap_endian(uint32_t val) {
     return ((val << 24) & 0xFF000000) | ((val << 8) & 0x00FF0000) |
            ((val >> 8) & 0x0000FF00)  | ((val >> 24) & 0x000000FF);
@@ -424,7 +402,7 @@ int randint(int min, int max) {
 }
 
 // ============================================================================
-// 6. Main Execution Pipeline
+//  Main Routine
 // ============================================================================
 
 int main() {

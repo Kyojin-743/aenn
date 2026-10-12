@@ -1,3 +1,5 @@
+#AENN/examples/simple
+
 add_executable(simple
     simple.cpp
 )
