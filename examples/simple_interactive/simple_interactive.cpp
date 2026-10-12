@@ -680,22 +680,22 @@ void stop_training(TrainingState& state);
 void show_training_graph(const TrainingState& state);
 void show_prediciton_image(const TrainingState& state);
 void show_training_config(TrainingState& state);
-void show_file_loader(TrainingState& state, bool& open_dialog);
-void show_file_saver(TrainingState& state);
+void show_file_dialog(TrainingState& state, bool& open_dialog, bool& is_loading);
 
 void main_window(TrainingState& state) {
     std::thread train_thread;
     static bool open_dialog = false;
+    static bool is_loading = false;
 
     if(ImGui::BeginMenuBar()) {
         if(ImGui::BeginMenu("File")){
             if(ImGui::BeginMenu("Load")) { 
                 if(ImGui::MenuItem("Default")) { load_new_state(state); }
                 if(ImGui::MenuItem("Current Selection")) {load_with_current(state); }
-                if(ImGui::MenuItem("From File")) { open_dialog = true; }
+                if(ImGui::MenuItem("From File")) { open_dialog = true; is_loading = true; }
                 ImGui::EndMenu();
             }
-            if(ImGui::MenuItem("Save")) {  }
+            if(ImGui::MenuItem("Save")) { open_dialog = true; is_loading = false; }
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -714,7 +714,7 @@ void main_window(TrainingState& state) {
         ImGui::EndChild();
     }   
 
-    show_file_loader(state, open_dialog);
+    show_file_dialog(state, open_dialog, is_loading);
 }
 
 void load_new_state(TrainingState& state) {
@@ -914,7 +914,7 @@ void show_file_dialog(TrainingState& state, bool& open_dialog, bool& is_loading)
     if (open_dialog) {
         IGFD::FileDialogConfig config;
         config.path = ".";
-        ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose File", ".train.data", config);
+        ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose File", ".tsrd", config);
         open_dialog = false; // Reset trigger so it only opens once
     }
 
