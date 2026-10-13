@@ -25,6 +25,13 @@ namespace AennTensor {
         return numel(this->shape);
     }
 
+    void Tensor::clear() {
+        shape.clear();
+        strides.clear();
+        offset = 0;
+        data->data.clear();
+    }
+
     size_t get_flat_index(const Shape& shape, const Strides& strides, const Index& index) {
         ASSERT(shape.size() == index.size()) << "Dim mismatch between: Shape (" << shape.size() << ") and Index (" << index.size() << ")" ;
         ASSERT(shape.size() == strides.size()) << "Dim mismatch between: Shape (" << shape.size() << ") and Stride (" << strides.size() << ")" ;

@@ -88,6 +88,7 @@ namespace AennTensor {
         size_t flat_index(const Index& index) const;
         Index from_flat(size_t flat_idx) const;
         size_t size() const;
+        void clear();
 
         //Tensor Manipulation Functions (always returns new)
         Tensor reshape(const Shape& new_shape) const;
