@@ -1,9 +1,7 @@
 #include <autograd.h>
 #include <cstdio>
 
-namespace Aenn_Autograd
+namespace AennAutoGrad
 {
-    void hello() {
-        printf("Hello, Autograd!\n");
-    }
+
 }

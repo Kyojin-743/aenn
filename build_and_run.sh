@@ -1,0 +1,1 @@
+cmake --build build && ./build/examples/simple_interactive/simple_interactive

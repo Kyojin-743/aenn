@@ -15,7 +15,6 @@ namespace AennTensor {
     //Forward declare for use in 'using' directives
     class Tensor;
     class Data;
-    enum Distribution;
 
     //Typenames
     using data_type = float;
@@ -43,7 +42,7 @@ namespace AennTensor {
     class Tensor {
     public:
         //Constructors
-        Tensor() {};    //default
+        Tensor() : offset(0), data(nullptr) {}
         explicit Tensor(const Shape& shape, data_type fill = static_cast<data_type>(0));
         explicit Tensor(const Shape& shape, const Vector& vec);
         Tensor(const Tensor& other);
@@ -58,6 +57,8 @@ namespace AennTensor {
         static Tensor Identity(const Shape& shape);
 
         //Overloads
+        Tensor& operator=(const Tensor& other);
+
         Tensor operator+(data_type scalar);
         Tensor operator-(data_type scalar);
         Tensor operator*(data_type scalar);
@@ -87,6 +88,7 @@ namespace AennTensor {
         size_t flat_index(const Index& index) const;
         Index from_flat(size_t flat_idx) const;
         size_t size() const;
+        void clear();
 
         //Tensor Manipulation Functions (always returns new)
         Tensor reshape(const Shape& new_shape) const;
