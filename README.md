@@ -9,6 +9,19 @@ imgui [https://github.com/ocornut/imgui/tree/docking]</br>
 implot [http://github.com/epezent/implot]</br>
 ImGuiFileDialog [https://github.com/aiekick/ImGuiFileDialog/tree/master]</br>
 
+## How to Build
+
+1. `git clone https://github.com/Kyojin-743/aenn`
+2. Clone Thirdparty repos into thirdparty and add the custom CMakeLists.txt for imgui, implot, and ImGuiFileDialog
+3. **DEPENDANCIES** This uses GLFW and OpenGL backend for ImGui, ensure GLFW and opengl are on your system:
+   - (**Linux**): *Use appropriate Package Manager: `sudo apt-get update && sudo apt-get install libglfw3-dev`
+   - (**Windows**):
+      1. `git clone https://github.com/microsoft/vcpkg C:/vcpkg`
+      2. `vcpkg install glfw3:x64-windows`
+      3. Reload any terminals (Close vscode if opened) and run `$env:VCPKG_ROOT`, it should print out `C:\vcpkg`
+4. `cd aenn ; cmake -B build`
+5. `build_and_run.sh`(Linux) or `build_and_run.bat` (Windows)
+
 ## TODO
 
 (In reverse order)
@@ -20,7 +33,7 @@ ImGuiFileDialog [https://github.com/aiekick/ImGuiFileDialog/tree/master]</br>
    - Along Axes (or whole tensor): These ops return new tensor
       - softmax, sigmoid
 
-## Notes
+## Personal Notes
 
 - Model is just the collection of Tensors (Auto-grad tensors, not the raw ones)
 - optimizer shares ptr to the model's data (parameters)
