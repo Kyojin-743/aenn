@@ -1,16 +1,22 @@
 #pragma once
 
+#include <fstream>
 #include <smartassert.h>
 #include <tensor.h>
 #include <thread>
 #include <cmath>
 
 namespace SimpleModels {
+#if defined(_WIN32)
+#else
+    using std::max;
+    using std::min;
+#endif
     using namespace AennTensor;
 
     //[index, prediction, Expected]
-    using Guesses = std::vector<std::tuple<int,int,int>>;
-    
+    using Guess = std::tuple<int,int,int>;
+    using Guesses = std::vector<Guess>;
     
     uint32_t swap_endian(uint32_t val) {
         return ((val << 24) & 0xFF000000) | ((val << 8) & 0x00FF0000) |
@@ -39,8 +45,7 @@ namespace SimpleModels {
         if (!file) return false;
         images = Tensor({num_items, img_size});
 
-        size_t thread_count = std::thread::hardware_concurrency();
-        if (thread_count == 0) thread_count = 4;
+        size_t thread_count = 4;
         if (thread_count > num_items) thread_count = num_items;
 
         size_t items_per_thread = num_items / thread_count;
@@ -86,9 +91,7 @@ namespace SimpleModels {
         if(!file) return false;
         labels = Tensor::Zeroes({num_items, 10});
 
-
-        size_t thread_count = std::thread::hardware_concurrency();
-        if (thread_count == 0) thread_count = 4;
+        size_t thread_count = 4;
         if (thread_count > num_items) thread_count = num_items;
 
         size_t items_per_thread = num_items / thread_count;
@@ -178,10 +181,8 @@ namespace SimpleModels {
     };
 
     class ReLU : public Activation {
-    private:
-        Tensor cached_input;
-
     public:
+        Tensor cached_input;
         Tensor forward(const Tensor& input) override {
             this->cached_input = input;
             Tensor result(input.shape);
@@ -205,10 +206,8 @@ namespace SimpleModels {
     };
 
     class Sigmoid : public Activation {
-    private:
-        Tensor cached_output;
-
     public:
+        Tensor cached_output;
         Tensor forward(const Tensor& input) override {
             Tensor result(input.shape);
             size_t total = numel(input.shape);
@@ -424,8 +423,9 @@ namespace SimpleModels {
                 }
             }
 
+            Guess g = {static_cast<int>(1),static_cast<int>(pred),static_cast<int>(actual)};
             if (pred == actual) correct++;
-            else guesses.push_back({1,pred,actual});
+            else guesses.push_back(g);
         }
 
         float accuracy = (100.0f * correct / num_test);

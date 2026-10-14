@@ -120,7 +120,7 @@ public:
         Tensor result(input.shape);
         size_t total = numel(input.shape);
         for (size_t i = 0; i < total; ++i) {
-            result[i] = std::max(0.0f, input[i]);
+            result[i] = max(0.0f, input[i]);
         }
         return result;
     }
@@ -189,7 +189,7 @@ Tensor softmax(const Tensor& logits) {
     for (size_t b = 0; b < batch_size; ++b) {
         float max_val = logits[b * num_classes];
         for (size_t c = 1; c < num_classes; ++c) {
-            max_val = std::max(max_val, logits[b * num_classes + c]);
+            max_val = max(max_val, logits[b * num_classes + c]);
         }
 
         float sum_exp = 0.0f;
@@ -283,7 +283,7 @@ Tensor cross_entropy_loss(const Tensor& logits, const Tensor& labels) {
     for (size_t b = 0; b < batch_size; ++b) {
         for (size_t c = 0; c < num_classes; ++c) {
             if (labels[b * num_classes + c] > 0.5f) {
-                float prob = std::max(probs[b * num_classes + c], 1e-7f);
+                float prob = max(probs[b * num_classes + c], 1e-7f);
                 total_loss -= std::log(prob);
             }
         }
@@ -443,13 +443,14 @@ int main() {
         size_t batches = 0;
 
         for (size_t i = 0; i < num_train; i += batch_size) {
-            size_t current_batch = std::min(batch_size, num_train - i);
+            size_t current_batch = min(batch_size, num_train - i);
             pip("Progress: %.2f%%", (float)i/num_train*100);
-            auto start = i;
-            auto stop  = i + current_batch;
+            ptrdiff_t start = i;
+            ptrdiff_t stop  = i + current_batch;
 
-            Tensor x_batch = train_images[{{start, stop}, {-1,-1}}];
-            Tensor y_batch = train_labels[{{start, stop}, {-1,-1}}];
+            Ranges slice = {Range{start, stop}, Range{-1,-1}};
+            Tensor x_batch = train_images[slice];
+            Tensor y_batch = train_labels[slice];
 
             model.zero_grad();
             Tensor logits = model.forward(x_batch);

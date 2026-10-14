@@ -12,3 +12,8 @@ target_link_libraries(simple_interactive
         implot
         ImGuiFileDialog
 )
+
+target_include_directories(simple_interactive
+    PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
