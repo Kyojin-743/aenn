@@ -7,8 +7,6 @@
 #include "simple_model.h"
 #include "simple_gui.h"
 
-
-
 using namespace AennTensor;
 using namespace SimpleModels;
 using namespace SimpleGui;
@@ -247,6 +245,9 @@ public:
     bool _save_training_data(std::string file_path) {
         std::ofstream out_file(file_path, std::ios::binary);
         if (!out_file) return false;
+        
+        model.sync_weights_to_host();
+
         out_file.write(reinterpret_cast<const char*>(&gui_state.epochs),        sizeof(gui_state.epochs));
         out_file.write(reinterpret_cast<const char*>(&gui_state.batch_size),    sizeof(gui_state.batch_size));
         out_file.write(reinterpret_cast<const char*>(&gui_state.num_train),     sizeof(gui_state.num_train));

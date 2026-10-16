@@ -1,7 +1,7 @@
 #AENN/cuda_tensor/
 
 add_library(cuda_tensor STATIC
-    src/cuda_matmul.cu
+    src/cuda_tensor.cu
 )
 
 target_include_directories(cuda_tensor PUBLIC
