@@ -1,6 +1,8 @@
 #include <cuda_matmul.h>
 #include <cuda_runtime.h>
+#include <cublas_v2.h>
 #include <stdexcept>
+
 
 namespace aenn {
     namespace cuda_matmul {
@@ -99,6 +101,66 @@ namespace aenn {
             cudaFree(C_d);
             
             return 0;
+        }
+
+        cublasHandle_t get_cublas_handle() {
+            static thread_local cublasHandle_t handle = nullptr;
+            if (!handle) {
+                cublasStatus_t status = cublasCreate(&handle);
+                if (status != CUBLAS_STATUS_SUCCESS) {
+                    throw std::runtime_error("Failed to create cuBLAS handle");
+                }
+            }
+            return handle;
+        }
+
+        void launch_matmul(const float* A, const float* B, float* C, int numARows, int numACols, int numBRows, int numBCols) {  
+            float *A_d, *B_d, *C_d;
+
+            int sizeA = numARows * numACols;
+            int sizeB = numBRows * numBCols;
+            int sizeC = numARows * numBCols;
+
+            cudaMalloc(&A_d, sizeof(float) * sizeA);
+            cudaMalloc(&B_d, sizeof(float) * sizeB);
+            cudaMalloc(&C_d, sizeof(float) * sizeC);
+
+            cudaMemcpy(A_d, A, sizeA * sizeof(float), cudaMemcpyHostToDevice);
+            cudaMemcpy(B_d, B, sizeB * sizeof(float), cudaMemcpyHostToDevice);
+
+            cublasHandle_t handle = get_cublas_handle();
+
+            const float alpha = 1.0f;
+            const float beta = 0.0f;
+
+            // cuBLAS SGEMM (Column-Major adjustment for Row-Major: C^T = B^T * A^T)
+            cublasStatus_t status = cublasSgemm(
+                handle,
+                CUBLAS_OP_N,
+                CUBLAS_OP_N,
+                numBCols,     // N
+                numARows,     // M
+                numACols,     // K
+                &alpha,
+                B_d, numBCols,
+                A_d, numACols,
+                &beta,
+                C_d, numBCols
+            );
+
+            if (status != CUBLAS_STATUS_SUCCESS) {
+                cudaFree(A_d);
+                cudaFree(B_d);
+                cudaFree(C_d);
+                throw std::runtime_error("cuBLAS SGEMM failed execution");
+            }
+
+            cudaDeviceSynchronize();
+            cudaMemcpy(C, C_d, sizeC * sizeof(float), cudaMemcpyDeviceToHost);
+
+            cudaFree(A_d);
+            cudaFree(B_d);
+            cudaFree(C_d);
         }
 
     }

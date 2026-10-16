@@ -9,7 +9,7 @@ target_include_directories(cuda_tensor PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(cuda_tensor PRIVATE tensor CUDA::cudart)
+target_link_libraries(cuda_tensor PRIVATE tensor CUDA::cudart CUDA::cublas)
 
 set_target_properties(cuda_tensor PROPERTIES
     CUDA_STANDARD 20

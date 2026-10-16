@@ -8,7 +8,7 @@
 
 #include <cuda_matmul.h>
 
-#define matmul_fast matmul_gpu
+#define matmul_fast matmul_cublas
 
 namespace SimpleModels {
 #if defined(_WIN32)
@@ -191,6 +191,30 @@ namespace SimpleModels {
         host_c = c.data->data.data() + c.offset;
 
         aenn::cuda_matmul::sgemm_tiled_coarsed(host_a, host_b, host_c, a_rows, a_cols, b_rows, b_cols);
+        return c;
+    }
+
+    Tensor matmul_cublas(const Tensor& a, const Tensor& b) {
+        ASSERT(a.shape.size() == 2 && b.shape.size() == 2) << "Dim of both tensors must be 2";
+
+        size_t a_rows, a_cols, b_rows, b_cols, c_rows, c_cols;
+        a_rows = a.shape[0];
+        a_cols = a.shape[1];
+        b_rows = b.shape[0];
+        b_cols = b.shape[1];
+        c_rows = a_rows;
+        c_cols = b_cols;
+        
+        ASSERT(a_cols == b_rows) << "Inner dimensions must match";
+
+        Tensor c({c_rows, c_cols});
+        float *host_a, *host_b, *host_c;
+
+        host_a = a.data->data.data() + a.offset;
+        host_b = b.data->data.data() + b.offset;
+        host_c = c.data->data.data() + c.offset;
+
+        aenn::cuda_matmul::launch_matmul(host_a, host_b, host_c, a_rows, a_cols, b_rows, b_cols);
         return c;
     }
 
