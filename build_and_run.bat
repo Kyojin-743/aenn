@@ -1,2 +1,1 @@
-cmake --build build
-.\build\examples\simple_interactive\Debug\simple_interactive.exe
+cmake --build build && .\build\examples\simple_interactive\Debug\simple_interactive.exe

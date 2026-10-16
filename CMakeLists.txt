@@ -26,7 +26,6 @@ elseif(MSVC)
     add_link_options($<$<CONFIG:Release>:/LTCG>)
 endif()
 
-# High-performance CUDA optimizations for Release
 if(CMAKE_CUDA_COMPILER)
     set(CMAKE_CUDA_FLAGS_RELEASE "${CMAKE_CUDA_FLAGS_RELEASE} -O3 --use_fast_math")
 endif()
