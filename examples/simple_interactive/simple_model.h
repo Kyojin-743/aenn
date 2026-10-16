@@ -6,6 +6,10 @@
 #include <thread>
 #include <cmath>
 
+#include <cuda_matmul.h>
+
+#define matmul_fast matmul_gpu
+
 namespace SimpleModels {
 #if defined(_WIN32)
 #else
@@ -23,7 +27,7 @@ namespace SimpleModels {
             ((val >> 8) & 0x0000FF00)  | ((val >> 24) & 0x000000FF);
     }
 
-    bool load_mnist_images(const std::string& path, Tensor& images, size_t max_samples = 0) {
+    bool load_mnist_images(const std::string& path, Tensor& images, size_t max_samples = 0, size_t max_threads = 4) {
         std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) return false;
 
@@ -40,34 +44,36 @@ namespace SimpleModels {
         if (max_samples > 0 && max_samples < num_items) num_items = max_samples;
         size_t img_size = rows * cols;
         size_t total_bytes = num_items * img_size;
+        
         std::vector<uint8_t> file_buffer(total_bytes);
         file.read(reinterpret_cast<char*>(file_buffer.data()), total_bytes);
         if (!file) return false;
+
         images = Tensor({num_items, img_size});
+        float* raw_images_ptr = images.data->data.data() + images.offset;
 
-        size_t thread_count = 4;
-        if (thread_count > num_items) thread_count = num_items;
-
+        // Bound thread count to avoid oversubscription
+        size_t thread_count = std::min(max_threads, (size_t)num_items);
         size_t items_per_thread = num_items / thread_count;
         std::vector<std::thread> threads;
         threads.reserve(thread_count);
 
-        // Launch threads to normalize and populate the tensor in parallel
+        const float inv_255 = 1.0f / 255.0f;
+
         for (size_t t = 0; t < thread_count; ++t) {
             size_t start_idx = t * items_per_thread;
             size_t end_idx = (t == thread_count - 1) ? num_items : start_idx + items_per_thread;
 
-            threads.emplace_back([start_idx, end_idx, img_size, &file_buffer, &images]() {
+            threads.emplace_back([start_idx, end_idx, img_size, &file_buffer, raw_images_ptr, inv_255]() {
                 for (size_t i = start_idx; i < end_idx; ++i) {
                     size_t offset = i * img_size;
                     for (size_t j = 0; j < img_size; ++j) {
-                        images[offset + j] = static_cast<float>(file_buffer[offset + j]) / 255.0f;
+                        raw_images_ptr[offset + j] = static_cast<float>(file_buffer[offset + j]) * inv_255;
                     }
                 }
             });
         }
 
-        // Join all worker threads
         for (auto& th : threads) {
             th.join();
         }
@@ -121,8 +127,7 @@ namespace SimpleModels {
     }
 
     Tensor matmul_thr(const Tensor& a, const Tensor& b) {
-        ASSERT(a.shape.size() == 2) << "Expected Degree 2. Got: " << a.shape.size();
-        ASSERT(b.shape.size() == 2) << "Expected Degree 2. Got: " << b.shape.size();
+        ASSERT(a.shape.size() == 2 && b.shape.size() == 2) << "Dim of both tensors must be 2";
         ASSERT(a.shape[1] == b.shape[0]) << "Inner dimensions must match.";
 
         size_t M(a.shape[0]);
@@ -163,6 +168,30 @@ namespace SimpleModels {
         }
 
         return t;
+    }
+
+    Tensor matmul_gpu(const Tensor& a, const Tensor& b) {
+        ASSERT(a.shape.size() == 2 && b.shape.size() == 2) << "Dim of both tensors must be 2";
+
+        size_t a_rows, a_cols, b_rows, b_cols, c_rows, c_cols;
+        a_rows = a.shape[0];
+        a_cols = a.shape[1];
+        b_rows = b.shape[0];
+        b_cols = b.shape[1];
+        c_rows = a_rows;
+        c_cols = b_cols;
+        
+        ASSERT(a_cols == b_rows) << "Inner dimensions must match";
+
+        Tensor c({c_rows, c_cols});
+        float *host_a, *host_b, *host_c;
+
+        host_a = a.data->data.data() + a.offset;
+        host_b = b.data->data.data() + b.offset;
+        host_c = c.data->data.data() + c.offset;
+
+        aenn::cuda_matmul::sgemm_tiled_coarsed(host_a, host_b, host_c, a_rows, a_cols, b_rows, b_cols);
+        return c;
     }
 
     class Activation {
@@ -307,7 +336,7 @@ namespace SimpleModels {
 
             for (size_t i = 0; i < weights.size(); ++i) {
                 Tensor aug_input = append_bias_column(current_input);
-                Tensor pre_act = matmul_thr(aug_input, (weights[i]));
+                Tensor pre_act = matmul_fast(aug_input, (weights[i]));
 
                 pre_activated.push_back(pre_act);
                 current_input = activations[i]->forward(pre_act);
@@ -372,10 +401,10 @@ namespace SimpleModels {
             Tensor dL_dPre = (l == num_layers - 1) ? dL_dA : model.activations[l]->backward(dL_dA);
 
             // Previous activation with appended 1.0 for bias
-            Tensor prev_act_aug = append_bias_column(model.activated[l]);
+            Tensor prev_act_aug = append_bias_column(model.activated[l]).transpose().contiguous();
 
             // Weight gradient: [InpSize + 1, Batch] x [Batch, OutpSize] = [InpSize + 1, OutpSize]
-            Tensor dW = matmul_thr(prev_act_aug.transpose(), dL_dPre);
+            Tensor dW = matmul_fast(prev_act_aug, dL_dPre);
             
             // Accumulate gradient
             size_t total_w = numel(model.grads[l].shape);
@@ -385,7 +414,7 @@ namespace SimpleModels {
 
             // Backpropagate to previous layer's activation gradient (excluding bias column)
             if (l > 0) {
-                Tensor dL_dAug = matmul_thr(dL_dPre, model.weights[l].transpose());
+                Tensor dL_dAug = matmul_fast(dL_dPre, model.weights[l].transpose().contiguous());
                 size_t prev_features = model.activated[l].shape[1];
                 dL_dA = Tensor({batch_size, prev_features});
 
@@ -396,6 +425,35 @@ namespace SimpleModels {
                 }
             }
         }
+    }
+
+    //runs one epoch of training(and applies) (returns loss for the epoch)
+    float train_one_epoch(SimpleModel& model, const Tensor& train_images, const Tensor& train_labels, 
+        size_t batch_size, float learn_rate) {
+        size_t num_train = train_images.shape[0];
+        float epoch_loss = 0.0f;
+
+        for (size_t i = 0; i < num_train; i += batch_size) {
+            printf("Training batch %d\n", i/batch_size);
+            size_t current_batch = std::min(batch_size, num_train - i);
+
+            ptrdiff_t start = i;
+            ptrdiff_t stop  = i + current_batch;
+            Ranges batch_range{{start, stop}, {-1, -1}};
+            
+            Tensor x_batch = train_images[batch_range].contiguous();
+            Tensor y_batch = train_labels[batch_range].contiguous();
+
+            model.zero_grad();
+            Tensor logits = model.forward(x_batch);
+            Tensor loss = cross_entropy_loss(logits, y_batch);
+
+            backward_step(model, logits, y_batch);
+            model.update_weights(learn_rate);
+
+            epoch_loss += loss[0];
+        }
+        return epoch_loss;
     }
 
     std::tuple<float, Guesses> evaluate_model(SimpleModel& model, const Tensor& inp, const Tensor& exp) {

@@ -108,28 +108,32 @@ namespace AennTensor {
         data = std::make_shared<Data>(vec);
     }
 
-//Copy constructor (makes NEW tensor)
-Tensor::Tensor(const Tensor& other) {
-    this->shape = other.shape;
-    this->offset = 0; 
+    //Copy constructor (makes NEW tensor)
+    Tensor::Tensor(const Tensor& other) {
+        this->shape = other.shape;
+        this->offset = 0; 
 
-    size_t total_elements = numel(this->shape);
-    size_t ndim = this->shape.size();
+        size_t total_elements = numel(this->shape);
+        size_t ndim = this->shape.size();
 
-    //recompute strides
-    this->strides = Strides(ndim, 1);
-    if (ndim > 0) {
-        for (int i = static_cast<int>(ndim) - 2; i >= 0; --i) {
-            this->strides[i] = this->strides[i + 1] * this->shape[i + 1];
+        this->strides = Strides(ndim, 1);
+        if (ndim > 0) {
+            for (int i = static_cast<int>(ndim) - 2; i >= 0; --i) {
+                this->strides[i] = this->strides[i + 1] * this->shape[i + 1];
+            }
+        }
+
+        this->data = std::make_shared<Data>(total_elements);
+        if (total_elements > 0 && other.data) {
+            if (other.is_contiguous()) {
+                std::memcpy(this->data->data.data(), other.data->data.data() + other.offset, total_elements * sizeof(data_type));
+            } else {
+                for (size_t i = 0; i < total_elements; ++i) {
+                    this->data->data[i] = other[i];
+                }
+            }
         }
     }
-
-    //Copy data
-    this->data = std::make_shared<Data>(total_elements);
-    for (size_t i = 0; i < total_elements; ++i) {
-        this->data->data[i] = other[i]; //other's offset is applied automatically
-    }
-}
 
     Tensor Tensor::Zeroes(const Shape& shape) {
         Tensor t(shape);
@@ -229,6 +233,32 @@ Tensor::Tensor(const Tensor& other) {
         
     const char* Tensor::c_str(bool pretty) const {
         return strdup(tostr(pretty).c_str());
+    }
+
+    bool Tensor::is_contiguous() const {
+        if (shape.empty()) return true;
+        Strides std_strides(shape.size(), 1);
+        for (int i = static_cast<int>(shape.size()) - 2; i >= 0; --i) {
+            std_strides[i] = std_strides[i + 1] * shape[i + 1];
+        }
+        return strides == std_strides;
+    }
+
+    Tensor Tensor::contiguous() const {
+        if (is_contiguous()) {
+            Tensor t(shape);
+            size_t total = numel(shape);
+            if (total > 0 && data) {
+                std::memcpy(t.data->data.data(), data->data.data() + offset, total * sizeof(data_type));
+            }
+            return t;
+        }
+        Tensor t(shape);
+        size_t total = numel(shape);
+        for (size_t i = 0; i < total; ++i) {
+            t[i] = (*this)[i];
+        }
+        return t;
     }
 
     Tensor Tensor::reshape(const Shape& new_shape) const  {
@@ -482,44 +512,89 @@ Tensor::Tensor(const Tensor& other) {
         return *this;
     }
 
-    Tensor Tensor::operator+(data_type scalar) {
+Tensor Tensor::operator+(data_type scalar) {
         Tensor t(this->shape);
-        for(size_t i (0ULL); i < this->size(); ++i) {
-            t[i] = (*this)[i] + scalar;
+        size_t total = this->size();
+        if (this->is_contiguous() && this->data) {
+            const data_type* src = this->data->data.data() + this->offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < total; ++i) {
+                dst[i] = src[i] + scalar;
+            }
+        } else {
+            for (size_t i = 0; i < total; ++i) {
+                t[i] = (*this)[i] + scalar;
+            }
         }
         return t;
     }
 
     Tensor Tensor::operator-(data_type scalar) {
         Tensor t(this->shape);
-        for(size_t i (0ULL); i < this->size(); ++i) {
-            t[i] = (*this)[i] - scalar;
+        size_t total = this->size();
+        if (this->is_contiguous() && this->data) {
+            const data_type* src = this->data->data.data() + this->offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < total; ++i) {
+                dst[i] = src[i] - scalar;
+            }
+        } else {
+            for (size_t i = 0; i < total; ++i) {
+                t[i] = (*this)[i] - scalar;
+            }
         }
         return t;
     }
 
     Tensor Tensor::operator*(data_type scalar) {
         Tensor t(this->shape);
-        for(size_t i (0ULL); i < this->size(); ++i) {
-            t[i] = (*this)[i] * scalar;
+        size_t total = this->size();
+        if (this->is_contiguous() && this->data) {
+            const data_type* src = this->data->data.data() + this->offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < total; ++i) {
+                dst[i] = src[i] * scalar;
+            }
+        } else {
+            for (size_t i = 0; i < total; ++i) {
+                t[i] = (*this)[i] * scalar;
+            }
         }
         return t;
     }
 
     Tensor Tensor::operator/(data_type scalar) {
         Tensor t(this->shape);
-        for(size_t i (0ULL); i < this->size(); ++i) {
-            t[i] = (*this)[i] / scalar;
+        size_t total = this->size();
+        if (this->is_contiguous() && this->data) {
+            const data_type* src = this->data->data.data() + this->offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < total; ++i) {
+                dst[i] = src[i] / scalar;
+            }
+        } else {
+            for (size_t i = 0; i < total; ++i) {
+                t[i] = (*this)[i] / scalar;
+            }
         }
         return t;
     }
 
-    Tensor Tensor::operator+(const Tensor& other) {
+Tensor Tensor::operator+(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements(numel(this->shape));   
-        for (size_t i(0ULL); i < num_elements; ++i) {
-            t[i] = (*this)[i] + other[i];
+        size_t num_elements = numel(this->shape);
+        if (this->is_contiguous() && other.is_contiguous() && this->data && other.data) {
+            const data_type* src1 = this->data->data.data() + this->offset;
+            const data_type* src2 = other.data->data.data() + other.offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < num_elements; ++i) {
+                dst[i] = src1[i] + src2[i];
+            }
+        } else {
+            for (size_t i = 0; i < num_elements; ++i) {
+                t[i] = (*this)[i] + other[i];
+            }
         }
         return t;
     }
@@ -527,9 +602,18 @@ Tensor::Tensor(const Tensor& other) {
     Tensor Tensor::operator-(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements(numel(this->shape)); 
-        for (size_t i(0ULL); i < num_elements; ++i) {
-            t[i] = (*this)[i] - other[i];
+        size_t num_elements = numel(this->shape);
+        if (this->is_contiguous() && other.is_contiguous() && this->data && other.data) {
+            const data_type* src1 = this->data->data.data() + this->offset;
+            const data_type* src2 = other.data->data.data() + other.offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < num_elements; ++i) {
+                dst[i] = src1[i] - src2[i];
+            }
+        } else {
+            for (size_t i = 0; i < num_elements; ++i) {
+                t[i] = (*this)[i] - other[i];
+            }
         }
         return t;
     }
@@ -537,9 +621,18 @@ Tensor::Tensor(const Tensor& other) {
     Tensor Tensor::operator*(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements(numel(this->shape));
-        for (size_t i(0ULL); i < num_elements; ++i) {
-            t[i] = (*this)[i] * other[i];
+        size_t num_elements = numel(this->shape);
+        if (this->is_contiguous() && other.is_contiguous() && this->data && other.data) {
+            const data_type* src1 = this->data->data.data() + this->offset;
+            const data_type* src2 = other.data->data.data() + other.offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < num_elements; ++i) {
+                dst[i] = src1[i] * src2[i];
+            }
+        } else {
+            for (size_t i = 0; i < num_elements; ++i) {
+                t[i] = (*this)[i] * other[i];
+            }
         }
         return t;
     }
@@ -547,9 +640,18 @@ Tensor::Tensor(const Tensor& other) {
     Tensor Tensor::operator/(const Tensor& other) {
         ASSERT(this->shape == other.shape) << "Shapes need to be the same";
         Tensor t(this->shape);
-        size_t num_elements(numel(this->shape));
-        for (size_t i(0ULL); i < num_elements; ++i) {
-            t[i] = (*this)[i] / other[i];
+        size_t num_elements = numel(this->shape);
+        if (this->is_contiguous() && other.is_contiguous() && this->data && other.data) {
+            const data_type* src1 = this->data->data.data() + this->offset;
+            const data_type* src2 = other.data->data.data() + other.offset;
+            data_type* dst = t.data->data.data();
+            for (size_t i = 0; i < num_elements; ++i) {
+                dst[i] = src1[i] / src2[i];
+            }
+        } else {
+            for (size_t i = 0; i < num_elements; ++i) {
+                t[i] = (*this)[i] / other[i];
+            }
         }
         return t;
     }

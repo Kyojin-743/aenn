@@ -43,3 +43,9 @@ ImGuiFileDialog [https://github.com/aiekick/ImGuiFileDialog/tree/master]</br>
   - backward (the loss is an auto-grad node that can have backward called on it(dumps the grad vaues to each tensor in the model))
   - step (apply, the gradiants to the model's tensors)
   - reset (zero-out the gradiant attached to the model's tensors)
+
+## Issues
+
+- training after training does weird loop
+- test image slider at max num_test sometimes fails assert for slicing
+- Evaluating is slow

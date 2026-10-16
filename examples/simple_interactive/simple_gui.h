@@ -58,8 +58,10 @@ namespace SimpleGui {
         bool stop_training{false};
         bool load_file{false};
         bool save_file{false};    
+        std::string file;
 
         //Passed in data from tasks (atomic/mutex guarded) 
+        mutable std::mutex lock;
         std::atomic<bool>  images_loaded{false};
         std::atomic<bool>  training{false};
         std::atomic<float> training_progress{0.0f};
@@ -143,7 +145,7 @@ namespace SimpleGui {
         return (ImTextureID)(intptr_t)textureID;
     }
 
-    void draw_gui (GLFWwindow*& glfw_window, GuiState& gui) {
+    void gui_step (GLFWwindow*& glfw_window, GuiState& gui) {
             glfwPollEvents();
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
@@ -167,8 +169,6 @@ namespace SimpleGui {
             if(ImGui::BeginMenuBar()) {
                 if(ImGui::BeginMenu("File")){
                     if(ImGui::BeginMenu("Load")) { 
-                        if(ImGui::MenuItem("Default")) {  }
-                        if(ImGui::MenuItem("Current Selection")) { }
                         if(ImGui::MenuItem("From File")) { open_dialog = true; is_loading = true; }
                         ImGui::EndMenu();
                     }
@@ -194,7 +194,12 @@ namespace SimpleGui {
             }   
 
             if(auto fp = show_file_dialog(open_dialog)) {
-                std::cout << fp.value() << std::endl;
+                gui.file = fp.value();
+                if(is_loading) {
+                    gui.load_file = true;
+                } else {
+                    gui.save_file = true;
+                }
             }
 
                 ImGui::End();
@@ -211,326 +216,6 @@ namespace SimpleGui {
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             glfwSwapBuffers(glfw_window);
     }
-
-// void load_new_state(TrainingState& state) {
-//     //quick mnist that gives 90% accuracy
-
-//     state.epochs = 5;
-//     state.batch_size = 10;
-//     state.learning_rate = 0.05f;
-//     state.num_train = 500; //60k max
-//     state.num_test  = 50;  //10k max
-
-//     load_with_current(state);
-// }
-
-// void load_with_current(TrainingState& state) {
-//     state.is_ready = true;
-//     std::cout << "Loading dataset..." << std::endl;
-//     if (!load_mnist_images("../data/train-images.idx3-ubyte", state.train_images, state.num_train) ||
-//         !load_mnist_labels("../data/train-labels.idx1-ubyte", state.train_labels, state.num_train)) {
-//         std::cerr << "Failed to load MNIST training files from ../data/" << std::endl;
-//         exit(1);
-//     }
-//     if(!load_mnist_images("../data/t10k-images.idx3-ubyte", state.test_images, state.num_test) ||
-//        !load_mnist_labels("../data/t10k-labels.idx1-ubyte", state.test_labels, state.num_test)) {
-//         std::cerr << "Failed to load MNIST test files from ../data/" << std::endl;
-//         exit(1);
-//     }
-// }
-
-// void clear_training_state(TrainingState& state) {
-//     if(!state.is_ready) return;
-//     state.stop_next = true;
-//     while(state.in_progress);
-
-//     state.epochs = 0;
-//     state.batch_size = 0;
-//     state.num_train = 0; 
-//     state.num_test = 0;
-//     state.learning_rate = 0;
-
-//     state.is_ready = false;
-//     state.progress_fraction = 0;
-//     state.is_training = false;
-//     state.stop_next = false;
-
-//     state.loss_history.clear();
-//     state.acc_history.clear();  
-//     state.current_guesses.clear();
-
-//     state.train_images.clear(); 
-//     state.train_labels.clear();
-//     state.test_images.clear();
-//     state.test_labels.clear();
-// }
-
-// void save_training_state(const std::string& filepath, const TrainingState& state) {
-//     std::ofstream out(filepath, std::ios::binary);
-//     if (!out) return;
-
-//     out.write(reinterpret_cast<const char*>(&state.epochs), sizeof(state.epochs));
-//     out.write(reinterpret_cast<const char*>(&state.batch_size), sizeof(state.batch_size));
-//     out.write(reinterpret_cast<const char*>(&state.num_train), sizeof(state.num_train));
-//     out.write(reinterpret_cast<const char*>(&state.num_test), sizeof(state.num_test));
-//     out.write(reinterpret_cast<const char*>(&state.learning_rate), sizeof(state.learning_rate));
-
-//     float progress = state.progress_fraction.load();
-//     out.write(reinterpret_cast<const char*>(&progress), sizeof(progress));
-
-//     auto write_vector = [&out](const std::vector<float>& vec) {
-//         size_t size = vec.size();
-//         out.write(reinterpret_cast<const char*>(&size), sizeof(size));
-//         if (size > 0) {
-//             out.write(reinterpret_cast<const char*>(vec.data()), size * sizeof(float));
-//         }
-//     };
-//     write_vector(state.loss_history);
-//     write_vector(state.acc_history);
-
-//     auto write_vector_int = [&out](const std::vector<int>& vec) {
-//         size_t size = vec.size();
-//         out.write(reinterpret_cast<const char*>(&size), sizeof(size));
-//         if (size > 0) {
-//             out.write(reinterpret_cast<const char*>(vec.data()), size * sizeof(int));
-//         }
-//     };
-//     write_vector_int(state.current_guesses);
-
-//     auto write_tensor = [&out](const AennTensor::Tensor& tensor) {
-//         bool has_data = (tensor.data != nullptr);
-//         out.write(reinterpret_cast<const char*>(&has_data), sizeof(has_data));
-//         if (!has_data) return;
-
-//         size_t shape_size = tensor.shape.size();
-//         out.write(reinterpret_cast<const char*>(&shape_size), sizeof(shape_size));
-//         if (shape_size > 0) {
-//             out.write(reinterpret_cast<const char*>(tensor.shape.data()), shape_size * sizeof(size_t));
-//         }
-
-//         size_t strides_size = tensor.strides.size();
-//         out.write(reinterpret_cast<const char*>(&strides_size), sizeof(strides_size));
-//         if (strides_size > 0) {
-//             out.write(reinterpret_cast<const char*>(tensor.strides.data()), strides_size * sizeof(size_t));
-//         }
-
-//         out.write(reinterpret_cast<const char*>(&tensor.offset), sizeof(tensor.offset));
-
-//         size_t data_size = tensor.data->data.size();
-//         out.write(reinterpret_cast<const char*>(&data_size), sizeof(data_size));
-//         if (data_size > 0) {
-//             out.write(reinterpret_cast<const char*>(tensor.data->data.data()), data_size * sizeof(AennTensor::data_type));
-//         }
-//     };
-
-//     write_tensor(state.train_images);
-//     write_tensor(state.train_labels);
-//     write_tensor(state.test_images);
-//     write_tensor(state.test_labels);
-
-//     // --- Save Model Weights ---
-//     size_t num_weights = state.model.weights.size();
-//     out.write(reinterpret_cast<const char*>(&num_weights), sizeof(num_weights));
-//     for (const auto& w : state.model.weights) {
-//         write_tensor(w);
-//     }
-// }
-
-// bool load_training_state(const std::string& filepath, TrainingState& state) {
-//     std::ifstream in(filepath, std::ios::binary);
-//     if (!in) return false;
-
-//     in.read(reinterpret_cast<char*>(&state.epochs), sizeof(state.epochs));
-//     in.read(reinterpret_cast<char*>(&state.batch_size), sizeof(state.batch_size));
-//     in.read(reinterpret_cast<char*>(&state.num_train), sizeof(state.num_train));
-//     in.read(reinterpret_cast<char*>(&state.num_test), sizeof(state.num_test));
-//     in.read(reinterpret_cast<char*>(&state.learning_rate), sizeof(state.learning_rate));
-//     in.read(reinterpret_cast<char*>(&state.progress_fraction), sizeof(state.progress_fraction));
-
-//     auto read_vector = [&in](std::vector<float>& vec) {
-//         size_t size = 0;
-//         in.read(reinterpret_cast<char*>(&size), sizeof(size));
-//         vec.resize(size);
-//         if (size > 0) {
-//             in.read(reinterpret_cast<char*>(vec.data()), size * sizeof(float));
-//         }
-//     };
-//     read_vector(state.loss_history);
-//     read_vector(state.acc_history);
-
-//     auto read_vector_int = [&in](std::vector<int>& vec) {
-//         size_t size = 0;
-//         in.read(reinterpret_cast<char*>(&size), sizeof(size));
-//         vec.resize(size);
-//         if (size > 0) {
-//             in.read(reinterpret_cast<char*>(vec.data()), size * sizeof(int));
-//         }
-//     };
-//     read_vector_int(state.current_guesses);
-
-//     auto read_tensor = [&in](AennTensor::Tensor& tensor) {
-//         bool has_data = false;
-//         in.read(reinterpret_cast<char*>(&has_data), sizeof(has_data));
-//         if (!has_data) {
-//             tensor = AennTensor::Tensor();
-//             return;
-//         }
-
-//         size_t shape_size = 0;
-//         in.read(reinterpret_cast<char*>(&shape_size), sizeof(shape_size));
-//         tensor.shape.resize(shape_size);
-//         if (shape_size > 0) {
-//             in.read(reinterpret_cast<char*>(tensor.shape.data()), shape_size * sizeof(size_t));
-//         }
-
-//         size_t strides_size = 0;
-//         in.read(reinterpret_cast<char*>(&strides_size), sizeof(strides_size));
-//         tensor.strides.resize(strides_size);
-//         if (strides_size > 0) {
-//             in.read(reinterpret_cast<char*>(tensor.strides.data()), strides_size * sizeof(size_t));
-//         }
-
-//         in.read(reinterpret_cast<char*>(&tensor.offset), sizeof(tensor.offset));
-
-//         size_t data_size = 0;
-//         in.read(reinterpret_cast<char*>(&data_size), sizeof(data_size));
-        
-//         tensor.data = std::make_shared<AennTensor::Data>(data_size);
-//         if (data_size > 0) {
-//             in.read(reinterpret_cast<char*>(tensor.data->data.data()), data_size * sizeof(AennTensor::data_type));
-//         }
-//     };
-
-//     read_tensor(state.train_images);
-//     read_tensor(state.train_labels);
-//     read_tensor(state.test_images);
-//     read_tensor(state.test_labels);
-
-//     // --- Load Model Weights ---
-//     size_t num_weights = 0;
-//     in.read(reinterpret_cast<char*>(&num_weights), sizeof(num_weights));
-//     state.model.weights.resize(num_weights);
-//     for (size_t i = 0; i < num_weights; ++i) {
-//         read_tensor(state.model.weights[i]);
-//     }
-
-//     // Re-initialize gradient buffers to match the loaded weight dimensions
-//     state.model.grads.resize(num_weights);
-//     for (size_t i = 0; i < num_weights; ++i) {
-//         state.model.grads[i] = Tensor::Zeroes(state.model.weights[i].shape);
-//     }
-
-//     state.is_ready.store(true);
-//     return true;
-// }
-
-// void evaluate_and_store(TrainingState& state) {
-//     std::cout << "\nEvaluating model performance..." << std::endl;
-//     Tensor test_logits = state.model.forward(state.test_images);
-//     Tensor test_probs = softmax(test_logits);
-
-//     size_t correct = 0;
-//     state.current_guesses.clear();
-//     for (size_t i = 0; i < state.num_test; ++i) {
-//         size_t pred = 0;
-//         float max_p = test_probs[i * 10];
-//         for (size_t c = 1; c < 10; ++c) {
-//             if (test_probs[i * 10 + c] > max_p) {
-//                 max_p = test_probs[i * 10 + c];
-//                 pred = c;
-//             }
-//         }
-
-//         size_t actual = 0;
-//         for (size_t c = 0; c < 10; ++c) {
-//             if (state.test_labels[i * 10 + c] > 0.5f) {
-//                 actual = c;
-//                 break;
-//             }
-//         }
-
-//         // std::cout << "Expected " << actual << ". Got " << pred << "." << std::endl;
-//         if (pred == actual) correct++;
-//         state.current_guesses.push_back(pred);
-//     }
-
-//     float accuracy = (100.0f * correct / state.num_test);
-//     std::cout << "Test Accuracy: " << accuracy << "% (" 
-//               << correct << "/" << state.num_test << ")" << std::endl;
-//     state.acc_history.push_back(accuracy);
-// }
-
-// void training_loop(TrainingState& state) {
-//     std::cout << "Starting Training (" << state.epochs << " Epochs, Batch Size " << state.batch_size << ")..." << std::endl;
-
-//     size_t epoch = 0;
-//     while(state.is_training) {
-//         if(epoch == state.epochs) {
-//             state.is_training = false;
-//             break;
-//         }
-        
-//         float epoch_loss = 0.0f;
-//         size_t batches = 0;
-//         float batch_progress = 0;
-//         state.in_progress = true;
-//         for (size_t i = 0; i < state.num_train; i += state.batch_size) {
-//             if(state.stop_next) break;
-//             size_t current_batch = std::min((unsigned long)state.batch_size, state.num_train - i);
-            
-//             batch_progress = (float)i/state.num_train;
-//             state.progress_fraction = (epoch + batch_progress) / state.epochs;
-
-//             auto start = i;
-//             auto stop  = i + current_batch;
-
-//             Tensor x_batch = state.train_images[{{start, stop}, {-1,-1}}];
-//             Tensor y_batch = state.train_labels[{{start, stop}, {-1,-1}}];
-
-//             state.model.zero_grad();
-//             Tensor logits = state.model.forward(x_batch);
-//             Tensor loss = cross_entropy_loss(logits, y_batch);
-
-//             backward_step(state.model, logits, y_batch);
-//             state.model.update_weights(state.learning_rate);
-
-//             epoch_loss += loss[0];
-//             batches++;
-//         }
-//         state.in_progress = false;
-//         if(state.stop_next) {
-//             state.is_training = false;
-//             return;
-//         }
-
-//         state.loss_history.push_back(epoch_loss);
-//         evaluate_and_store(state);
-
-//         std::cout << "Epoch " << (epoch + 1) << "/" << state.epochs << " - Loss: " << (epoch_loss / batches) << std::endl;
-//         epoch++;
-//     }
-// }
-
-// void start_training(TrainingState& state) {
-//     if(state.epochs == 0) return;
-
-//     state.is_training = true;
-//     state.acc_history.clear();
-//     state.loss_history.clear();
-//     state.progress_fraction = 0;
-
-//     if(!state.is_ready) load_with_current(state);
-    
-//     std::thread training_thread([&state] {
-//         training_loop(state);
-//     });
-//     training_thread.detach();
-// }
-
-// void stop_training(TrainingState& state) {
-//     state.stop_next = true;
-//     state.in_progress = false;
-// }
 
     std::optional<std::string> show_file_dialog(bool& open_dialog) {
         if (open_dialog) {
@@ -565,15 +250,27 @@ namespace SimpleGui {
         float buttonWidth = ImGui::CalcTextSize(button_text).x; 
         set_center_ofs(buttonWidth);
         if (ImGui::Button(button_text, ImVec2(buttonWidth + 10, 0.0f))) {
-            if(!gui.training) {
+            if(!gui.training) {   
+                gui.start_training = true;
             } else {
+                gui.stop_training = true;
             }
         }
     }
 
     void show_training_graph(const GuiState& gui) {
-        const size_t l_hist = gui.loss_history.size();
-        const size_t a_hist = gui.acc_history.size();
+        floats local_loss;
+        floats local_acc;
+        int local_epochs = gui.epochs;
+
+        {
+            // std::lock_guard<std::mutex> lock(gui.lock);
+            local_loss = gui.loss_history;
+            local_acc = gui.acc_history;
+        }
+
+        const size_t l_hist = local_loss.size();
+        const size_t a_hist = local_acc.size();
 
         floats xs1(l_hist), xs2(a_hist);
         for(size_t i(0); i < l_hist; ++i) { xs1[i] = i; }
@@ -587,19 +284,18 @@ namespace SimpleGui {
 
             //plot loss
             ImPlot::SetAxes(ImAxis_X1, ImAxis_Y1);
-            ImPlot::PlotLine("Loss", xs1.data(), gui.loss_history.data(), l_hist);
+            ImPlot::PlotLine("Loss", xs1.data(), local_loss.data(), l_hist);
 
             //plot accuracy
             ImPlot::SetAxes(ImAxis_X1, ImAxis_Y2);
-            ImPlot::PlotLine("Accuracy", xs2.data(), gui.acc_history.data(), a_hist);
+            ImPlot::PlotLine("Accuracy", xs2.data(), local_acc.data(), a_hist);
 
             ImPlot::EndPlot();
         }
     }
 
     void show_prediciton_image(const GuiState& gui) {
-        if (!gui.images_loaded || gui.test_images->shape.size() != 2) {
-            //show progress bar of the images loading?
+        if (!gui.images_loaded) {
             return;
         }
         
