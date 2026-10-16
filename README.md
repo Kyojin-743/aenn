@@ -48,4 +48,4 @@ ImGuiFileDialog [https://github.com/aiekick/ImGuiFileDialog/tree/master]</br>
 
 - training after training does weird loop
 - test image slider at max num_test sometimes fails assert for slicing
-- Evaluating is slow
+- Overall performance of training is still too slow for my liking (i think my tensor library is the bottleneck)
