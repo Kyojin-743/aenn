@@ -47,6 +47,26 @@ namespace AennTensor {
         explicit Tensor(const Shape& shape, const Vector& vec);
         Tensor(const Tensor& other);
 
+        //Move semantics (prefered over copies)
+        Tensor(Tensor&& other) noexcept 
+            : data(std::move(other.data)), 
+            shape(std::move(other.shape)), 
+            strides(std::move(other.strides)), 
+            offset(other.offset) {
+            other.offset = 0;
+        }
+
+        Tensor& operator=(Tensor&& other) noexcept {
+            if (this != &other) {
+                data = std::move(other.data);
+                shape = std::move(other.shape);
+                strides = std::move(other.strides);
+                offset = other.offset;
+                other.offset = 0;
+            }
+            return *this;
+        }
+
         //Static Functions 
         static Tensor Zeroes(const Shape& shape);
         static Tensor Ones(const Shape& shape);
@@ -89,6 +109,7 @@ namespace AennTensor {
         Index from_flat(size_t flat_idx) const;
         size_t size() const;
         void clear();
+        bool is_contiguous() const;
 
         //Tensor Manipulation Functions (always returns new)
         Tensor reshape(const Shape& new_shape) const;
@@ -98,6 +119,7 @@ namespace AennTensor {
         Tensor mean(const Axes& axes, bool keep_dims=false) const;
         Tensor min(const Axes& axes, bool keep_dims=false) const;
         Tensor max(const Axes& axes, bool keep_dims=false) const;
+        Tensor contiguous() const;
 
         //fields
         std::shared_ptr<Data> data;

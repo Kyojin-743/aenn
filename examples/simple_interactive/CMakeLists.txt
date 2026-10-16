@@ -11,6 +11,7 @@ target_link_libraries(simple_interactive
         imgui
         implot
         ImGuiFileDialog
+        cuda_tensor
 )
 
 target_include_directories(simple_interactive
